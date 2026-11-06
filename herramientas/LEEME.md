@@ -42,7 +42,7 @@ Cómo cambiar los dibujos:
 - Para cambiar el nombre de una profesión, cambia su valor en `seleccion-clawd.json` y vuelve a ejecutar el script.
 - Para añadir una profesión de clawd-pet, añade su entrada a `seleccion-clawd.json`. Para ver los 148 dibujos y elegir, se pueden abrir los SVG de `clawd-descarga/` en el navegador, que los enseña animados.
 - Para añadir un dibujo propio, guárdalo en `clawd-propios/` como `clawd-<id>.svg`, con `viewBox="-15 -25 45 45"` como los demás, y añade su entrada a la selección. Si un dibujo propio se llama igual que uno descargado, el script usa el propio. Cambia también el comentario de cabecera que escribe el script, porque nombra a `medico` y `cientifico` como los únicos dibujos que no son de clawd-pet.
-- Las tres últimas entradas de la selección, `celebrating`, `facepalm` y `sleeping`, no son profesiones sino las poses del final (terminado, fallo y parado). El script las reconoce por su `id`, y su nombre solo aparece en la previa.
+- Las tres últimas entradas de la selección, `celebrating`, `dizzy` y `sleeping`, no son profesiones sino las poses del final (terminado, fallo y parado). El script las reconoce por su `id`, y su nombre solo aparece en la previa.
 - La galería «Las 34 profesiones» del `README.md` está escrita a mano. Si cambias la selección, cambia también esa tabla y el número de su título, y la fila de Clawds del principio del `README.md` si nombra un dibujo que ya no está.
 
 Los dibujos de clawd-pet tienen licencia MIT, que obliga a conservar su aviso de copyright: por eso el repositorio lleva `LICENSE-clawd-pet.txt` en la raíz y `clawd-descarga/LICENSE.txt` aquí. No borres ninguno de los dos.

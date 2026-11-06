@@ -38,7 +38,7 @@ El sistema de mods de Claude Code está en fase de pruebas y puede cambiar entre
 <table>
   <tr>
     <td align="center" width="200"><img src="imagenes/clawds/clawd-celebrating.svg" width="96" alt="Clawd celebrando"><br><b>Termina bien</b><br>Celebra y suena una fanfarria corta de trompeta.</td>
-    <td align="center" width="200"><img src="imagenes/clawds/clawd-facepalm.svg" width="96" alt="Clawd con la mano en la cara"><br><b>Falla</b><br>Se lleva la mano a la cara y suena un tintineo.</td>
+    <td align="center" width="200"><img src="imagenes/clawds/clawd-dizzy.svg" width="96" alt="Clawd mareado, con los ojos en X y estrellas dando vueltas sobre la cabeza"><br><b>Falla</b><br>Se marea, con estrellas dando vueltas, y suena un tintineo.</td>
     <td align="center" width="200"><img src="imagenes/clawds/clawd-sleeping.svg" width="96" alt="Clawd dormido"><br><b>Lo paras</b><br>Se duerme y suena un tintineo.</td>
   </tr>
 </table>

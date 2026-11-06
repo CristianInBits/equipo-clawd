@@ -16,7 +16,7 @@ const [descargas, propios, seleccion, salidaTs, salidaHtml, salidaReadme] = [
   path.join(AQUI, '..', 'imagenes', 'clawds'),
 ].map((porDefecto, i) => path.resolve(process.argv[2 + i] || porDefecto));
 const eleccion = JSON.parse(fs.readFileSync(seleccion, 'utf8'));
-const POSES = { celebrating: 'terminado', facepalm: 'fallo', sleeping: 'parado' };
+const POSES = { celebrating: 'terminado', dizzy: 'fallo', sleeping: 'parado' };
 const RECORTE = '-6 -9 27 27'; // the 15x16 body centred, room for hats above and props at the sides
 const PELIGRO = /<script|foreignObject|\bon[a-z]+\s*=|@import|<image|<iframe|javascript:|href="(?!#)|url\((?!#)/i;
 
@@ -54,7 +54,7 @@ const ts = [
   '',
   `export const PROFESIONES: readonly Profesion[] = ${JSON.stringify(profesiones.map(({ id, nombre }) => ({ id, nombre })), null, 2)}`,
   '',
-  "export const POSES = { terminado: 'celebrating', fallo: 'facepalm', parado: 'sleeping' } as const",
+  "export const POSES = { terminado: 'celebrating', fallo: 'dizzy', parado: 'sleeping' } as const",
   '',
   `export const CLAWDS: Readonly<Record<string, string>> = ${JSON.stringify(clawds, null, 2)}`,
   '',
