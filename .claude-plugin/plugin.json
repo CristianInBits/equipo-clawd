@@ -1,0 +1,11 @@
+{
+  "name": "equipo-clawd",
+  "version": "0.3.0",
+  "description": "Panel Equipo: cada agente en marcha es un Clawd con una profesión al azar, con su tarea, su tipo, su modelo, sus tokens y su tiempo; al pie, los límites de uso, el contexto y lo que le queda a la caché.",
+  "author": { "name": "CristianInBits", "url": "https://github.com/CristianInBits" },
+  "homepage": "https://github.com/CristianInBits/equipo-clawd",
+  "repository": "https://github.com/CristianInBits/equipo-clawd",
+  "license": "MIT",
+  "keywords": ["agentes", "panel", "clawd", "consumo"],
+  "types": "./types/index.d.ts"
+}

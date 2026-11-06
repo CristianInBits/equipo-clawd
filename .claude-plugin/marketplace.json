@@ -1,0 +1,6 @@
+{
+  "name": "equipo-clawd",
+  "owner": { "name": "CristianInBits", "url": "https://github.com/CristianInBits" },
+  "description": "El mod Equipo para Claude Code: un panel donde cada agente es un Clawd vestido de una profesión, con el consumo de la sesión al pie.",
+  "plugins": [{ "name": "equipo-clawd", "source": "./" }]
+}

@@ -1,0 +1,4 @@
+# Finales de línea LF en todas las copias, también en Windows, para que los scripts de herramientas/ regeneren hooks/clawds.ts byte a byte y git no marque como cambiado un archivo que no ha cambiado.
+* text=auto eol=lf
+*.wav binary
+*.png binary
