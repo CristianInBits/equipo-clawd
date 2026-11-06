@@ -49,33 +49,39 @@ En los tres casos sale además un aviso con la profesión del Clawd y su tarea. 
 
 ## Instalación
 
-En una terminal de Claude Code, escribe en el cuadro de la conversación:
+Hay tres formas de instalarlo, según dónde uses Claude Code. Elige una sola, porque las tres hacen lo mismo. No hace falta cuenta de GitHub.
+
+**En la app de escritorio**, donde `/plugin` no funciona: pulsa el botón + junto al cuadro de texto, después **Plugins**, **Add marketplace** con `CristianInBits/equipo-clawd`, y luego **Add plugin**.
+
+**En una sesión de Claude Code en la terminal**, escribe en el cuadro de la conversación:
 
 ```
 /plugin install equipo-clawd --marketplace CristianInBits/equipo-clawd
 ```
 
-Desde una terminal normal:
+**En una terminal normal**, como PowerShell en Windows o Terminal en Mac:
 
 ```
 claude plugin install equipo-clawd --marketplace CristianInBits/equipo-clawd
 ```
 
-En la app de escritorio, donde `/plugin` no funciona: pulsa el botón + junto al cuadro de texto, después **Plugins**, **Add marketplace** con `CristianInBits/equipo-clawd`, y luego **Add plugin**.
-
-Lo que verás, en orden: la pregunta `Add marketplace?`, que se responde con `y`; los detalles del plugin, donde se elige el ámbito de usuario con Enter; y al final `Installed equipo-clawd. Plugin is now active.` No hace falta cuenta de GitHub.
+En las dos formas de la terminal verás, en orden: la pregunta `Add marketplace?`, que se responde con `y`; los detalles del plugin, donde se elige el ámbito de usuario con Enter; y al final `Installed equipo-clawd. Plugin is now active.`
 
 ## Actualizar
 
-Cuando haya una versión nueva, en una terminal normal:
+Cuando haya una versión nueva, ejecuta estas dos órdenes en una terminal normal, una detrás de otra y en este orden. Hacen falta las dos:
 
-```
-claude plugin marketplace update equipo-clawd
-```
+1. La primera descarga de GitHub la lista de versiones del mod, para que Claude Code sepa que hay una nueva:
 
-```
-claude plugin update equipo-clawd@equipo-clawd
-```
+   ```
+   claude plugin marketplace update equipo-clawd
+   ```
+
+2. La segunda instala esa versión nueva:
+
+   ```
+   claude plugin update equipo-clawd@equipo-clawd
+   ```
 
 Después escribe `/reload-plugins` en una sesión abierta, o abre una sesión nueva.
 
