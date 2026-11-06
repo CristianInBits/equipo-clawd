@@ -16,6 +16,8 @@ Es un proyecto de la comunidad, sin relación con Anthropic. Clawd es la mascota
 
 <p align="center">
   <img src="imagenes/panel.png" width="410" alt="El panel Equipo durante la demo, con cuatro agentes de mentira: tres trabajando, vestidos de su profesión, y uno que ya ha terminado">
+  <br>
+  <img src="imagenes/pie.png" width="427" alt="El pie del panel, con barras de píxeles: el límite de uso de 5 horas al 41 %, el semanal al 78 %, el contexto al 54 % y a la caché le quedan 59 minutos">
 </p>
 
 - Al pie del panel, el consumo, con barras de píxeles que se llenan en verde, en ámbar desde la mitad y en rojo desde el 80 %:
