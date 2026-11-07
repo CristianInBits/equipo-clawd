@@ -318,3 +318,39 @@ test('la fila de otra herramienta se deja al motor', async ($, on) => {
   expect((await ui.find({ type: 'Text', text: /fila del motor/ }))?.text).toBe('fila del motor')
   await ui.unmount()
 })
+
+test('el botón Clawds de debajo del cuadro de texto abre el panel y, si se ve, lo cierra, solo en la app de escritorio', async ($, on) => {
+  mock.clock(on, { now: 1_000_000 })
+  almacen(on)
+  // The engine's own mode labels, which stay before the button.
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>focus</Text>
+  })
+  // The panes the engine keeps: the panel, once open, is the one shown.
+  let abierto = false
+  on('ui.open', (_$, e) => {
+    abierto = e.id === 'equipo'
+    return { value: { isPlaced: true } }
+  })
+  on('ui.close', () => {
+    abierto = false
+    return { value: undefined }
+  })
+  on('ui.panes', () => ({ value: abierto ? [{ id: 'equipo', title: 'Equipo', isShown: true, isFocused: false, isPlaced: true }] : [] }))
+
+  const escritorio = await $.ui.mount({ plugin: 'equipo-clawd', component: 'SessionMode', surface: 'desktop', props: { modes: ['focus'] } })
+  expect((await escritorio.find({ type: 'Text', text: /^focus$/ })) !== undefined).toBe(true)
+  expect((await escritorio.find({ key: 'equipo' }))?.props.label).toBe('Clawds')
+  await escritorio.press({ key: 'equipo' })
+  expect(abierto).toBe(true)
+  await escritorio.press({ key: 'equipo' })
+  expect(abierto).toBe(false)
+  await escritorio.unmount()
+
+  // The terminal keeps the engine's line as it is.
+  const terminal = await $.ui.mount({ plugin: 'equipo-clawd', component: 'SessionMode', surface: 'terminal', props: { modes: ['focus'] } })
+  expect((await terminal.find({ type: 'Text', text: /^focus$/ })) !== undefined).toBe(true)
+  expect((await terminal.find({ key: 'equipo' })) === undefined).toBe(true)
+  await terminal.unmount()
+})

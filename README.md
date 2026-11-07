@@ -28,7 +28,7 @@ Es un proyecto de la comunidad, sin relación con Anthropic. Clawd es la mascota
 - `/equipo demo` llena el panel con cuatro agentes de mentira durante un minuto, sin gastar tokens, para verlo o hacer capturas.
 - Los agentes de un workflow se agrupan bajo el nombre del workflow, con su tiempo total y sus tokens.
 - El mismo Clawd aparece junto a la fila del chat donde se lanzó el agente.
-- El panel se abre solo cuando arranca un agente, y también con la orden `/equipo`, por ejemplo para ver el consumo cuando no hay agentes.
+- El panel se abre solo cuando arranca un agente, y también con la orden `/equipo`, por ejemplo para ver el consumo cuando no hay agentes. En la app de escritorio, además, lo abre el botón «Clawds», que está junto al nombre del modelo, en la parte de abajo del cuadro de texto, y si el panel ya se ve, lo cierra.
 - Cada agente suelto tiene un botón «Parar», y cada workflow, «Parar workflow».
 
 Los tokens de cada agente se cuentan como en el resumen de Claude Code: lo que ocupaba su última petición al modelo, contexto y respuesta.

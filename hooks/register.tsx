@@ -1,6 +1,7 @@
 // Panel "Equipo": each agent of the session as a Clawd dressed in a random profession,
 // with its task, type, model, effort, tokens and time; a toast and a short chime when it ends.
 // At its foot, the usage limits, the context window and how long the prompt cache stays warm.
+// /equipo opens it and, in the desktop app, so does a small «Clawds» button under the prompt.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SessionContextUsage, SessionRateLimit } from 'claude-code'
 
@@ -433,6 +434,21 @@ async function terminaDemo($: EngineInterface, id: string, estado: Estado) {
   await ajustaReloj($)
 }
 
+// Opens the panel with fresh figures, as /equipo does: the sound switch as stored and the engine's usage. With focus,
+// the surface may raise a panel that was open behind another one.
+async function abrePanel($: EngineInterface, focus?: true) {
+  await sonidoActivo($)
+  await leeConsumo($)
+  await $.ui.open({ id: PANEL, title: TITULO, ...(focus ? { focus } : {}) })
+}
+
+// The «Clawds» button under the prompt: it closes the panel while it is the one shown, and otherwise opens it.
+async function alternaPanel($: EngineInterface) {
+  const panel = (await $.ui.panes()).find(p => p.id === PANEL)
+  if (panel?.isShown) await $.ui.close({ id: PANEL })
+  else await abrePanel($, panel ? true : undefined)
+}
+
 async function parar($: EngineInterface, id: string) {
   try {
     const r = (await $.tool.call({ tool: 'TaskStop', task_id: id })) as { deny?: string; isError?: boolean; text?: string }
@@ -484,9 +500,7 @@ export const register: Register = on => {
       await ponSonido($, activo)
       return { text: activo ? 'Sonidos del panel Equipo activados, en todas las sesiones.' : 'Sonidos del panel Equipo desactivados, en todas las sesiones.' }
     }
-    await sonidoActivo($)
-    await leeConsumo($)
-    await $.ui.open({ id: PANEL, title: TITULO })
+    await abrePanel($)
     return { text: 'Panel Equipo abierto.' }
   })
 
@@ -631,6 +645,23 @@ export const register: Register = on => {
       // The toast and the sound are extras.
     }
     return res
+  })
+
+  // A small «Clawds» button in the line of mode labels under the prompt, beside the model's name, after the engine's own
+  // labels. A mod cannot draw in the desktop app's title bar, and this is the nearest place it can. The desktop app draws
+  // every button here alike, grey on a dark chip whose fixed height cuts the letters that drop below the line (g, j, p, q,
+  // y): it ignored a label Text's color and size, dimColor and the primary variant, and «Equipo» lost the foot of its q and
+  // p. So the label has none of those letters. The terminal keeps its line: there /equipo is at hand.
+  on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
+    if (e.surface !== 'desktop') return next(e)
+    const propio = await next(e)
+    const { Box, Button } = $.ui.resolve(e)
+    return (
+      <Box flexDirection="row" alignItems="center" gap="sm">
+        {propio}
+        <Button key="equipo" label="Clawds" onPress={() => void alternaPanel($)} />
+      </Box>
+    )
   })
 
   // The same Clawd beside the chat row where the agent was launched.
