@@ -21,7 +21,7 @@ Es un proyecto de la comunidad, sin relación con Anthropic. Clawd es la mascota
 </p>
 
 - Al pie del panel, el consumo, con barras de píxeles que se llenan en verde, en ámbar desde la mitad y en rojo desde el 80 %:
-  - cuánto llevas gastado de tus límites de uso de 5 horas y de la semana, y cuándo se renueva cada uno;
+  - cuánto llevas gastado de tus límites de uso de 5 horas y de la semana, y cuándo se renueva cada uno. Claude Code solo los conoce cuando Claude responde, así que, al abrir una sesión y hasta su primera respuesta, el panel enseña los últimos que conoció, con la hora en que los leyó;
   - cuánto ocupa la conversación en el contexto del modelo;
   - y cuánto le queda a la caché de la conversación antes de enfriarse. La caché dura una hora desde la última petición de Claude, salvo en uso extra, por encima de los límites de tu plan, donde dura cinco minutos y el panel no lo sabe. Si se enfría, el próximo mensaje vuelve a cargar toda la conversación, lo que tarda más y consume más de tus límites.
 - El botón «🔊 Sonido: sí» de la parte de arriba del panel quita los sonidos, y al pulsarlo otra vez, que dirá «🔇 Sonido: no», los vuelve a poner. También se puede con `/equipo sonido`, que cambia al contrario de como esté, o con `/equipo sonido no` y `/equipo sonido sí`. Lo que elijas se guarda y vale para todas tus sesiones, también las que abras después. Los avisos salen siempre.

@@ -22,10 +22,16 @@ export type Agente = {
 // is used, from 0 to 100 (past 100 on an exceeded spend limit), and when it renews, as an ISO 8601 timestamp.
 export type Limite = { tipo: string; porcentaje: number; renueva?: string }
 
-// What the panel's foot shows from the engine's last measurement: the context window and the usage windows.
+// What the panel's foot shows: the context window, from the engine's last measurement, and the usage windows. The engine
+// only has usage windows once Claude answers in the session, so until then the foot shows the last ones a session of
+// this computer saved in $.store, as remembered.
 export type Consumo = {
   contexto?: { tokens?: number; ventana: number; porcentaje?: number }
   limites: Limite[]
+  // When the engine reported the usage windows, in milliseconds since the epoch; absent when not known.
+  leidos?: number
+  // True when the usage windows come from $.store, read by an earlier session or by another one, and not by this one.
+  recordados?: boolean
 }
 
 // The main conversation's prompt cache: when its last request that got an answer went out, and whether a turn of it is running.

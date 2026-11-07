@@ -4,7 +4,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SessionContextUsage, SessionRateLimit } from 'claude-code'
 
-import type { Agente, Cache, Consumo, Estado } from '../types'
+import type { Agente, Cache, Consumo, Estado, Limite } from '../types'
 import { CLAWDS, POSES, PROFESIONES } from './clawds'
 
 const PANEL = 'equipo'
@@ -21,11 +21,16 @@ const sonido = atom({ plugin: 'equipo-clawd', key: 'sonido' } as const, true)
 const CLAVE_SONIDO = 'sonido'
 // The panel's foot: what the engine measured last (usage windows and context window), and the main
 // conversation's prompt cache (when its last answered request went out, and whether a turn of it runs).
+// Consumo's fields leidos and recordados came later, both optional, so what the tag consumo-1 stored still fits.
 const consumo = atom({ plugin: 'equipo-clawd', key: 'consumo' } as const, { limites: [] }, { shape: 'consumo-1' })
 const cache = atom({ plugin: 'equipo-clawd', key: 'cache' } as const, { enUso: false }, { shape: 'cache-1' })
 // On a subscription the main conversation's prompt cache lives an hour after each request (five minutes only
 // in extra usage, past the plan's limits). Nothing the mod receives says which, so it counts an hour.
 const CADUCIDAD_CACHE = 60 * 60 * 1000
+// The last usage windows a session of this computer read, with when, kept in $.store: the engine only knows them once
+// Claude answers, so a session that starts, after restarting the app or the computer too, shows these until then.
+const CLAVE_LIMITES = 'limites'
+const DIA = 24 * 60 * 60 * 1000
 
 const MARCA: Record<Estado, string> = { trabajando: '●', terminado: '✓', fallo: '✗', parado: '■' }
 const COLOR: Record<Estado, string> = { trabajando: '#D97757', terminado: '#639922', fallo: '#E24B4A', parado: '#888780' }
@@ -116,20 +121,62 @@ const VENTANAS: Record<string, { etiqueta: string; icono: Icono; orden: number }
 
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
 
-// When a window renews, in the computer's own time: «a las 19:50», «mañana a la 1:05», «el lunes a las 6:00».
+// Days from one moment to another by the computer's calendar: 0 on the same day, 1 on the next one.
+const diasEntre = (desde: number, hasta: number) => {
+  const dia = (t: number) => {
+    const d = new Date(t)
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  }
+  return Math.round((dia(hasta) - dia(desde)) / 86_400_000)
+}
+
+// The hour of a moment, in the computer's own time: «a las 19:50», «a la 1:05».
+const aLas = (d: Date) => `${d.getHours() === 1 ? 'a la' : 'a las'} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`
+
+// When a window renews: «se renueva a las 19:50», «se renueva mañana a la 1:05», «se renueva el lunes a las 6:00».
 const renovacion = (iso: string, ahora: number) => {
   const cuando = new Date(iso)
   if (Number.isNaN(cuando.getTime())) return ''
-  const hoy = new Date(ahora)
-  const dias = Math.round(
-    (new Date(cuando.getFullYear(), cuando.getMonth(), cuando.getDate()).getTime() - new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()).getTime()) /
-      86_400_000,
-  )
-  const hora = `${cuando.getHours() === 1 ? 'a la' : 'a las'} ${cuando.getHours()}:${String(cuando.getMinutes()).padStart(2, '0')}`
+  const dias = diasEntre(ahora, cuando.getTime())
+  const hora = aLas(cuando)
   if (dias <= 0) return `se renueva ${hora}`
   if (dias === 1) return `se renueva mañana ${hora}`
   if (dias < 7) return `se renueva el ${DIAS[cuando.getDay()]} ${hora}`
   return `se renueva el ${cuando.getDate()}/${cuando.getMonth() + 1} ${hora}`
+}
+
+// When a window renewed, once its time has passed: «se renovó a las 2:00», «se renovó ayer a las 19:50».
+const renovada = (iso: string, ahora: number) => {
+  const cuando = new Date(iso)
+  const dias = diasEntre(cuando.getTime(), ahora)
+  const hora = aLas(cuando)
+  if (dias <= 0) return `se renovó ${hora}`
+  if (dias === 1) return `se renovó ayer ${hora}`
+  if (dias < 7) return `se renovó el ${DIAS[cuando.getDay()]} ${hora}`
+  return `se renovó el ${cuando.getDate()}/${cuando.getMonth() + 1} ${hora}`
+}
+
+// When the remembered usage windows were read: «de hoy a las 17:12», «de ayer a las 23:10», «del lunes a las 9:00».
+const momento = (ms: number, ahora: number) => {
+  const cuando = new Date(ms)
+  const dias = diasEntre(ms, ahora)
+  const hora = aLas(cuando)
+  if (dias <= 0) return `de hoy ${hora}`
+  if (dias === 1) return `de ayer ${hora}`
+  if (dias < 7) return `del ${DIAS[cuando.getDay()]} ${hora}`
+  return `del ${cuando.getDate()}/${cuando.getMonth() + 1} ${hora}`
+}
+
+// What $.store holds under CLAVE_LIMITES, if it is what this mod wrote there: when the windows were read, and the windows.
+const comoGuardados = (x: unknown): { leidos: number; limites: Limite[] } | undefined => {
+  if (typeof x !== 'object' || x === null) return undefined
+  const { leidos, limites } = x as { leidos?: unknown; limites?: unknown }
+  if (typeof leidos !== 'number' || !Array.isArray(limites) || limites.length === 0) return undefined
+  const validos = limites.every((l: unknown) => {
+    const v = l as Partial<Record<keyof Limite, unknown>> | null
+    return typeof v === 'object' && v !== null && typeof v.tipo === 'string' && typeof v.porcentaje === 'number' && (v.renueva === undefined || typeof v.renueva === 'string')
+  })
+  return validos ? { leidos, limites: limites as Limite[] } : undefined
 }
 
 const enPorcentaje = (p: number) => `${String(Math.round(p * 10) / 10).replace('.', ',')} %`
@@ -163,17 +210,22 @@ const filaCache = (uso: Consumo, c: Cache, ahora: number): FilaPie[] => {
 }
 
 // The foot's rows: the usage windows, the context window and the cache, each only once there is a figure for it.
+// A window whose renewal time has passed starts over, so it shows empty until Claude answers again.
 const filasPie = (uso: Consumo, c: Cache, ahora: number): FilaPie[] => {
   const limites = [...uso.limites]
     .sort((x, y) => (VENTANAS[x.tipo]?.orden ?? 9) - (VENTANAS[y.tipo]?.orden ?? 9))
-    .map(l => ({
-      clave: l.tipo,
-      icono: VENTANAS[l.tipo]?.icono ?? ('reloj' as const),
-      etiqueta: VENTANAS[l.tipo]?.etiqueta ?? l.tipo.replace(/_/g, ' '),
-      p: l.porcentaje,
-      cifra: enPorcentaje(l.porcentaje),
-      nota: l.renueva ? renovacion(l.renueva, ahora) : '',
-    }))
+    .map(l => {
+      const renovado = l.renueva !== undefined && Date.parse(l.renueva) <= ahora
+      const p = renovado ? 0 : l.porcentaje
+      return {
+        clave: l.tipo,
+        icono: VENTANAS[l.tipo]?.icono ?? ('reloj' as const),
+        etiqueta: VENTANAS[l.tipo]?.etiqueta ?? l.tipo.replace(/_/g, ' '),
+        p,
+        cifra: enPorcentaje(p),
+        nota: l.renueva ? (renovado ? renovada(l.renueva, ahora) : renovacion(l.renueva, ahora)) : '',
+      }
+    })
   const ctx = uso.contexto
   const contexto: FilaPie[] =
     ctx?.porcentaje !== undefined
@@ -194,22 +246,36 @@ const filasPie = (uso: Consumo, c: Cache, ahora: number): FilaPie[] => {
 // The engine follows $ only into functions declared at the top of the file, so the helpers live here,
 // with the little state they keep (it starts over on a reload, which is fine for a clock and a chime).
 let reloj: { cancel: () => void; cada: number } | undefined
+let alRenovarse: { cancel: () => void; cuando: number } | undefined
 let ultimoSonido = 0
 const nombresWorkflow = new Map<string, string>()
 
 // The panel's clock: every second while an agent works, every 15 seconds while only the cache counts down,
-// and stopped when there is nothing left to count.
+// and stopped when there is nothing left to count. Besides, one beat when the next usage window renews, if it
+// does within a day, so the foot shows it renewed even while nothing else ticks.
 async function ajustaReloj($: EngineInterface) {
+  const ahora = await $.clock.now()
   const trabajan = (await read($, agentes)).some(a => a.estado === 'trabajando')
   const c = await read($, cache)
-  const caliente = !c.enUso && c.ultimaPeticion !== undefined && (await $.clock.now()) - c.ultimaPeticion < CADUCIDAD_CACHE
+  const caliente = !c.enUso && c.ultimaPeticion !== undefined && ahora - c.ultimaPeticion < CADUCIDAD_CACHE
   const cada = trabajan ? 1000 : caliente ? 15_000 : 0
-  if ((reloj?.cada ?? 0) === cada) return
-  reloj?.cancel()
-  reloj = undefined
-  if (cada > 0) {
-    const r = $.clock.every(cada, () => void latido($))
-    reloj = { cancel: () => r.cancel(), cada }
+  if ((reloj?.cada ?? 0) !== cada) {
+    reloj?.cancel()
+    reloj = undefined
+    if (cada > 0) {
+      const r = $.clock.every(cada, () => void latido($))
+      reloj = { cancel: () => r.cancel(), cada }
+    }
+  }
+  const proximas = (await read($, consumo)).limites.map(l => Date.parse(l.renueva ?? '')).filter(t => t > ahora && t - ahora <= DIA)
+  const cuando = proximas.length > 0 ? Math.min(...proximas) : 0
+  if ((alRenovarse?.cuando ?? 0) !== cuando) {
+    alRenovarse?.cancel()
+    alRenovarse = undefined
+    if (cuando > 0) {
+      const r = $.clock.after(cuando - ahora + 1000, () => void latido($))
+      alRenovarse = { cancel: () => r.cancel(), cuando }
+    }
   }
 }
 
@@ -256,28 +322,59 @@ async function suena($: EngineInterface, cual: 'victoria' | 'tintineo') {
   }
 }
 
-// Keeps what the engine measured for the foot. A measurement with no usage windows keeps the last ones read.
-async function guardaConsumo($: EngineInterface, medida: { context: SessionContextUsage; rateLimits: readonly SessionRateLimit[] }) {
+// Keeps what the engine measured for the foot. A measurement (session.measure) comes with its time: its usage windows
+// replace the ones shown and are saved in $.store for the sessions to come. $.session.usage() has no time, and its
+// windows may be hours old, so they only fill a foot that has none. With no usage windows, the foot keeps its own.
+async function guardaConsumo(
+  $: EngineInterface,
+  medida: { context: SessionContextUsage; rateLimits: readonly SessionRateLimit[] },
+  cuando?: number,
+) {
   const ctx = medida.context
-  await update($, consumo, antes => ({
-    contexto: {
-      ventana: ctx.window,
-      ...(ctx.tokens !== undefined ? { tokens: ctx.tokens } : {}),
-      ...(ctx.percent !== undefined ? { porcentaje: ctx.percent } : {}),
-    },
-    limites:
-      medida.rateLimits.length > 0
-        ? medida.rateLimits.map(l => ({ tipo: l.kind, porcentaje: l.percentUsed, ...(l.resetsAt ? { renueva: l.resetsAt } : {}) }))
-        : antes.limites,
-  }))
+  const contexto = {
+    ventana: ctx.window,
+    ...(ctx.tokens !== undefined ? { tokens: ctx.tokens } : {}),
+    ...(ctx.percent !== undefined ? { porcentaje: ctx.percent } : {}),
+  }
+  const limites = medida.rateLimits.map(l => ({ tipo: l.kind, porcentaje: l.percentUsed, ...(l.resetsAt ? { renueva: l.resetsAt } : {}) }))
+  await update($, consumo, antes =>
+    limites.length > 0 && cuando !== undefined
+      ? { contexto, limites, leidos: cuando }
+      : limites.length > 0 && antes.limites.length === 0
+        ? { contexto, limites }
+        : { ...antes, contexto },
+  )
+  if (limites.length === 0 || cuando === undefined) return
+  try {
+    await $.store.set(CLAVE_LIMITES, { leidos: cuando, limites })
+  } catch {
+    // Remembering them is a nicety.
+  }
 }
 
-// Asks the engine for its figures, for a panel that opens before the next measurement.
+// The last usage windows a session of this computer saved. The engine only has them once Claude answers in this
+// session, so until then the foot shows these, as remembered; newer ones, saved meanwhile by another session, win too.
+async function recuerdaLimites($: EngineInterface) {
+  const guardados = comoGuardados(await $.store.get(CLAVE_LIMITES))
+  if (!guardados) return
+  const antes = await read($, consumo)
+  if (antes.limites.length > 0 && (antes.leidos === undefined || guardados.leidos <= antes.leidos)) return
+  await update($, consumo, actual => ({ ...actual, limites: guardados.limites, leidos: guardados.leidos, recordados: true }))
+}
+
+// Asks the engine for its figures, for a panel that opens before the next measurement; recalls the saved usage
+// windows if this session has none newer, and sets the clock for when they renew.
 async function leeConsumo($: EngineInterface) {
   try {
     await guardaConsumo($, await $.session.usage())
   } catch {
     // The foot waits for the next measurement.
+  }
+  try {
+    await recuerdaLimites($)
+    await ajustaReloj($)
+  } catch {
+    // Remembering them is a nicety.
   }
 }
 
@@ -397,7 +494,8 @@ export const register: Register = on => {
   on('session.measure', async ($, e, next) => {
     const r = await next(e)
     try {
-      await guardaConsumo($, e)
+      await guardaConsumo($, e, await $.clock.now())
+      await ajustaReloj($)
     } catch {
       // The foot is a nicety.
     }
@@ -610,10 +708,20 @@ export const register: Register = on => {
       )
     }
     const filas = filasPie(uso, estadoCache, ahora)
+    // Usage windows remembered from $.store, which this session has not read yet: the foot says when they are from.
+    const recordados =
+      uso.recordados === true && uso.leidos !== undefined && uso.limites.length > 0
+        ? `Últimos límites conocidos, ${momento(uso.leidos, ahora)}. Se ponen al día con la próxima respuesta de Claude.`
+        : undefined
     const pie =
       filas.length > 0 ? (
         <Box flexDirection="column" gap="xs" borderStyle="round" paddingX={1}>
           {filas.map(filaPie)}
+          {recordados ? (
+            <Text dimColor size="caption">
+              {recordados}
+            </Text>
+          ) : null}
         </Box>
       ) : (
         <Text dimColor size="caption">

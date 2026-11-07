@@ -203,6 +203,75 @@ test('el pie enseña los límites de uso y el contexto, con los colores del sem�
   await terminal.unmount()
 })
 
+test('al arrancar, el pie enseña los últimos límites guardados, con su hora, hasta que Claude responde', async ($, on) => {
+  // Saturday 7 November 2026 at 9:30, in the computer's own time. The last limits were read last night at 23:10:
+  // the 5-hour window has renewed since, at 2:00, and the week's renews on Monday.
+  mock.clock(on, { now: new Date(2026, 10, 7, 9, 30).getTime() })
+  const guardado = almacen(on, {
+    limites: {
+      leidos: new Date(2026, 10, 6, 23, 10).getTime(),
+      limites: [
+        { tipo: 'five_hour', porcentaje: 41, renueva: new Date(2026, 10, 7, 2, 0).toISOString() },
+        { tipo: 'seven_day', porcentaje: 78, renueva: new Date(2026, 10, 9, 6, 0).toISOString() },
+      ],
+    },
+  })
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  // A session that has had no answer yet: the engine knows the context, but no usage window.
+  on('session.usage', () => ({ value: { startedAt: 0, context: { tokens: 21_000, window: 1_000_000, percent: 2 }, rateLimits: [] } }))
+  on('session.measure', (_$, e) => ({ changed: e.changed }))
+
+  await $.command.run({ command: 'equipo', args: '' })
+  const ui = await $.ui.mount({ ...PANEL, surface: 'desktop' })
+  const barras = async () => (await ui.findAll({ type: 'Svg' })).map(s => String(s.props.alt)).filter(alt => alt.includes(': '))
+  expect(await barras()).toEqual(['5 horas: 0 %', 'Semana: 78 %', 'Contexto: 2 %'])
+  expect((await ui.find({ type: 'Text', text: /^se renovó a las 2:00$/ })) !== undefined).toBe(true)
+  expect((await ui.find({ type: 'Text', text: /^se renueva el lunes a las 6:00$/ })) !== undefined).toBe(true)
+  expect((await ui.find({ type: 'Text', text: /^Últimos límites conocidos, de ayer a las 23:10\. Se ponen al día con la próxima respuesta de Claude\.$/ })) !== undefined).toBe(
+    true,
+  )
+
+  // Claude's first answer brings this session's own figures: they take the remembered ones' place and are saved.
+  await $.session.measure({
+    context: { tokens: 24_000, window: 1_000_000, percent: 2.4 },
+    rateLimits: [
+      { kind: 'five_hour', percentUsed: 3, resetsAt: new Date(2026, 10, 7, 14, 30).toISOString() },
+      { kind: 'seven_day', percentUsed: 79, resetsAt: new Date(2026, 10, 9, 6, 0).toISOString() },
+    ],
+    changed: ['context', 'rateLimits'],
+  })
+  expect(await barras()).toEqual(['5 horas: 3 %', 'Semana: 79 %', 'Contexto: 2,4 %'])
+  expect((await ui.find({ type: 'Text', text: /^se renueva a las 14:30$/ })) !== undefined).toBe(true)
+  expect((await ui.find({ type: 'Text', text: /Últimos límites conocidos/ })) === undefined).toBe(true)
+  expect(guardado.get('limites')).toEqual({
+    leidos: new Date(2026, 10, 7, 9, 30).getTime(),
+    limites: [
+      { tipo: 'five_hour', porcentaje: 3, renueva: new Date(2026, 10, 7, 14, 30).toISOString() },
+      { tipo: 'seven_day', porcentaje: 79, renueva: new Date(2026, 10, 9, 6, 0).toISOString() },
+    ],
+  })
+  await ui.unmount()
+})
+
+test('una ventana que se renueva con el panel abierto se vacía a su hora, aunque no trabaje nadie', async ($, on) => {
+  const reloj = mock.clock(on, { now: new Date(2026, 10, 6, 17, 40).getTime() })
+  almacen(on)
+  on('session.measure', (_$, e) => ({ changed: e.changed }))
+  await $.session.measure({
+    context: { tokens: 217_608, window: 1_000_000, percent: 22 },
+    rateLimits: [{ kind: 'five_hour', percentUsed: 9, resetsAt: new Date(2026, 10, 6, 19, 50).toISOString() }],
+    changed: ['context', 'rateLimits'],
+  })
+
+  const ui = await $.ui.mount({ ...PANEL, surface: 'desktop' })
+  expect((await ui.find({ type: 'Text', text: /^9 %$/ })) !== undefined).toBe(true)
+  // No agent works and no request warmed the cache, so only the renewal can redraw the panel.
+  await reloj.advance(2 * 60 * 60_000 + 11 * 60_000)
+  expect((await ui.find({ type: 'Text', text: /^0 %$/ })) !== undefined).toBe(true)
+  expect((await ui.find({ type: 'Text', text: /^se renovó a las 19:50$/ })) !== undefined).toBe(true)
+  await ui.unmount()
+})
+
 test('la caché cuenta una hora desde la última petición de la conversación y después se enfría', async ($, on) => {
   const reloj = mock.clock(on, { now: 50_000_000 })
   on('turn.start', (_$, e) => ({ turnId: e.turnId }))
