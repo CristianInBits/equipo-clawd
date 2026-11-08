@@ -35,7 +35,7 @@ test('un agente que arranca sale en el panel con un Clawd y una profesión', asy
   // Beside the name, the time in the colour of the state, and no tokens until the agent's first request. On the right,
   // only a small stop button: no icon but the Clawd.
   expect((await ui.find({ type: 'Text', text: /^0:00$/ }))?.props.color).toBe('#D97757')
-  expect((await ui.find({ type: 'Text', text: /^ · / })) === undefined).toBe(true)
+  expect((await ui.find({ type: 'Text', text: /^·$/ })) === undefined).toBe(true)
   expect((await ui.find({ key: 'parar-a1' }))?.props.label).toBe('STOP')
   expect((await ui.findAll({ type: 'Svg' })).length).toBe(1)
   await ui.unmount()
@@ -79,7 +79,7 @@ test('la demo llena el panel con cuatro agentes y terminan solos', async ($, on)
   expect((await ui.find({ type: 'Text', text: /^4 trabajando · 0 terminados$/ })) !== undefined).toBe(true)
   await reloj.advance(70_000)
   expect((await ui.find({ type: 'Text', text: /^0 trabajando · 3 terminados · 1 parados o con error$/ })) !== undefined).toBe(true)
-  expect((await ui.find({ type: 'Text', text: /^ · 142,8k$/ })) !== undefined).toBe(true)
+  expect((await ui.find({ type: 'Text', text: /^142,8k$/ })) !== undefined).toBe(true)
   // The longest demo agent ran 62 seconds.
   expect((await ui.find({ type: 'Text', text: /^1:02$/ })) !== undefined).toBe(true)
   await ui.unmount()
@@ -111,7 +111,9 @@ test('el tiempo de un agente se lee como un cronómetro, también pasada la hora
   for (const surface of ['desktop', 'terminal'] as const) {
     const ui = await $.ui.mount({ ...PANEL, surface })
     expect((await ui.find({ type: 'Text', text: /^1:03:12$/ }))?.props.color).toBe('#D97757')
-    expect((await ui.find({ type: 'Text', text: /^ · 354,6k$/ })) !== undefined).toBe(true)
+    // Name, time and tokens are Texts of their own, so a narrow panel cuts the tokens instead of wrapping the line.
+    expect((await ui.find({ type: 'Text', text: /^354,6k$/ })) !== undefined).toBe(true)
+    expect((await ui.find({ type: 'Text', text: /^·$/ })) !== undefined).toBe(true)
     await ui.unmount()
   }
 })
@@ -238,6 +240,9 @@ test('el pie enseña los límites de uso y el contexto, con los colores del sem�
   expect(barras.map(s => s.props.alt)).toEqual(['5 horas: 9 %', 'Semana: 74 %', 'Contexto: 22 %'])
   expect(String(barras[0].props.source)).toMatch(/#639922/)
   expect(String(barras[1].props.source)).toMatch(/#EF9F27/)
+  // The bar brings its own size and is drawn with no width of its own, so a narrow panel can shrink it.
+  expect(barras[0].props.width).toBe(undefined)
+  expect(String(barras[0].props.source)).toMatch(/width="138" height="8"/)
   await ui.unmount()
   const terminal = await $.ui.mount({ ...PANEL, surface: 'terminal' })
   expect((await terminal.findAll({ type: 'Svg' })).length).toBe(0)

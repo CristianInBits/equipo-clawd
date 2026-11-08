@@ -55,11 +55,6 @@ const cronometro = (ms: number) => {
 const compacto = (n: number) =>
   n >= 999_950 ? `${(n / 1_000_000).toFixed(1).replace('.', ',')}M` : n >= 1000 ? `${(n / 1000).toFixed(1).replace('.', ',')}k` : String(n)
 
-// Between an agent's name and its time, an em space, and around the dot before its tokens, en spaces: wider than plain
-// spaces, so the three stand apart, and no surface folds them.
-const ESPACIO = ' '
-const ANTES_TOKENS = ' · '
-
 type Uso = { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number }
 // As Claude Code counts an agent's tokens: what its last request carried and produced.
 const tokensDe = (u: Uso | null | undefined) =>
@@ -113,8 +108,10 @@ const svgIcono = (icono: Icono, apagado: boolean) =>
 // Twenty squares, one for each 5 %; any figure above zero lights one at least.
 const llenas = (p: number) => (p > 0 ? Math.min(20, Math.max(1, Math.round(p / 5))) : 0)
 
+// The bar's markup carries its own size: drawn with no width of its own, it keeps 138 × 8 while there is room and
+// shrinks with a narrow panel instead of pushing its figure out.
 const svgBarra = (p: number) =>
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 138 8" shape-rendering="crispEdges">${Array.from({ length: 20 }, (_, i) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="138" height="8" viewBox="0 0 138 8" shape-rendering="crispEdges">${Array.from({ length: 20 }, (_, i) =>
     i < llenas(p)
       ? `<rect x="${i * 7}" y="0" width="5" height="8" fill="${semaforo(p)}"/>`
       : `<rect x="${i * 7}" y="0" width="5" height="8" fill="${GRIS}" fill-opacity="0.3"/>`,
@@ -704,14 +701,15 @@ export const register: Register = on => {
 
     // The switch shows what is in force, and a press asks for the other way round from what it shows.
     const controles = (limpiar: boolean) => (
-      <Box flexDirection="row" justifyContent="flex-end" alignItems="center" gap="sm">
-        {limpiar ? <Button key="limpiar" label="Limpiar terminados" onPress={() => void update($, agentes, l => l.filter(a => a.estado === 'trabajando'))} /> : null}
+      <Box flexDirection="row" flexWrap="wrap" justifyContent="flex-end" alignItems="center" gap="sm">
+        {limpiar ?<Button key="limpiar" label="Limpiar terminados" onPress={() => void update($, agentes, l => l.filter(a => a.estado === 'trabajando'))} /> : null}
         <Button key="sonido" label={conSonido ? '🔊 Sonido: sí' : '🔇 Sonido: no'} onPress={() => void ponSonido($, !conSonido)} />
       </Box>
     )
 
     // One row of the foot: its pixel icon, its name, its bar with the figure beside it, and a note beneath the bar.
-    // Where SVG is not drawn, as on the terminal, the bar is made of block characters.
+    // Where SVG is not drawn, as on the terminal, the bar is made of block characters. In a narrow panel the bar gives
+    // way, never the figure, and the note goes on to a second line.
     const filaPie = (f: FilaPie) => {
       const n = llenas(f.p)
       return (
@@ -722,22 +720,26 @@ export const register: Register = on => {
               {f.etiqueta}
             </Text>
           </Box>
-          <Box flexDirection="column" flexGrow={1} flexShrink={1}>
+          <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
             <Box flexDirection="row" alignItems="center" gap="sm">
-              {Svg ? (
-                <Svg source={svgBarra(f.p)} alt={`${f.etiqueta}: ${f.cifra}`} width={138} height={8} />
-              ) : (
-                <Box flexDirection="row">
-                  {n > 0 ? <Text color={semaforo(f.p)}>{'█'.repeat(n)}</Text> : null}
-                  {n < 20 ? <Text dimColor>{'░'.repeat(20 - n)}</Text> : null}
-                </Box>
-              )}
-              <Text size="caption" weight="medium" tabular dimColor={f.apagado === true} color={!f.apagado && f.p >= 80 ? '#E24B4A' : undefined}>
-                {f.cifra}
-              </Text>
+              <Box flexShrink={1} minWidth={0} overflow="hidden">
+                {Svg ? (
+                  <Svg source={svgBarra(f.p)} alt={`${f.etiqueta}: ${f.cifra}`} />
+                ) : (
+                  <Box flexDirection="row">
+                    {n > 0 ? <Text color={semaforo(f.p)}>{'█'.repeat(n)}</Text> : null}
+                    {n < 20 ? <Text dimColor>{'░'.repeat(20 - n)}</Text> : null}
+                  </Box>
+                )}
+              </Box>
+              <Box flexShrink={0}>
+                <Text size="caption" weight="medium" tabular dimColor={f.apagado === true} color={!f.apagado && f.p >= 80 ? '#E24B4A' : undefined}>
+                  {f.cifra}
+                </Text>
+              </Box>
             </Box>
             {f.nota ? (
-              <Text dimColor size="caption" wrap="truncate-end">
+              <Text dimColor size="caption">
                 {f.nota}
               </Text>
             ) : null}
@@ -782,11 +784,41 @@ export const register: Register = on => {
     const otros = lista.length - trabajando - terminados
     const resumen = [`${trabajando} trabajando`, `${terminados} terminados`, ...(otros > 0 ? [`${otros} parados o con error`] : [])].join(' · ')
 
-    // One agent: its Clawd; on the first line its name, its time in the colour of its state and its tokens; then its task;
-    // then its type, model and effort. On the right there is only a small stop button, while it works. Nothing else asks
-    // for width, so the panel can be as narrow as wanted, and each line is cut at its end, the tokens first. The time's
-    // figures are all of one width, so the line does not shake as the seconds pass. The Clawd's pose and the time's colour
-    // tell the state; on the terminal, which draws no SVG, the mark in the Clawd's place does.
+    // The first line of an agent or of a workflow: its name, its time and, once there are any, its tokens. Each is a
+    // Text of its own in a row that never wraps (one Text holding coloured parts wraps like a paragraph on the desktop):
+    // when room runs short the tokens are cut first, then the name, and the time never. The time's figures are all of
+    // one width, so the line does not shake as the seconds pass. The gap before the time is twice the others.
+    const primeraLinea = (nombre: string, tiempo: string, color: string | undefined, tenue: boolean, tokens: number) => (
+      <Box flexDirection="row" alignItems="center" gap="sm">
+        <Box flexShrink={1} minWidth={0} overflow="hidden">
+          <Text weight="medium" wrap="truncate-end">
+            {nombre}
+          </Text>
+        </Box>
+        <Box flexShrink={0} marginLeft="sm">
+          <Text color={color} dimColor={tenue} tabular>
+            {tiempo}
+          </Text>
+        </Box>
+        {tokens > 0 ? (
+          <Box flexShrink={0}>
+            <Text dimColor>·</Text>
+          </Box>
+        ) : null}
+        {tokens > 0 ? (
+          <Box flexShrink={1000} minWidth={0} overflow="hidden">
+            <Text dimColor tabular wrap="truncate-end">
+              {compacto(tokens)}
+            </Text>
+          </Box>
+        ) : null}
+      </Box>
+    )
+
+    // One agent: its Clawd; its first line; then its task; then its type, model and effort. On the right there is only
+    // a small stop button, while it works. Nothing else asks for width, so the panel can be as narrow as wanted, and each
+    // line is cut at its end. The Clawd's pose and the time's colour tell the state; on the terminal, which draws no SVG,
+    // the mark in the Clawd's place does.
     const fila = (a: Agente) => {
       const tokens = tokensVistos(a, ahora)
       return (
@@ -796,19 +828,8 @@ export const register: Register = on => {
           ) : (
             <Text color={COLOR[a.estado]}>{MARCA[a.estado]}</Text>
           )}
-          <Box flexDirection="column" flexGrow={1} flexShrink={1}>
-            <Text wrap="truncate-end">
-              <Text weight="medium">{nombreDe(a.profesion)}</Text>
-              {ESPACIO}
-              <Text color={COLOR[a.estado]} tabular>
-                {cronometro((a.fin ?? ahora) - a.inicio)}
-              </Text>
-              {tokens > 0 ? (
-                <Text dimColor tabular>
-                  {`${ANTES_TOKENS}${compacto(tokens)}`}
-                </Text>
-              ) : null}
-            </Text>
+          <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
+            {primeraLinea(nombreDe(a.profesion), cronometro((a.fin ?? ahora) - a.inicio), COLOR[a.estado], false, tokens)}
             <Text dimColor wrap="truncate-end">
               {a.descripcion}
             </Text>
@@ -841,18 +862,7 @@ export const register: Register = on => {
       const ordenados = [...miembros].sort((x, y) => (x.workflow?.indice ?? 0) - (y.workflow?.indice ?? 0))
       return (
         <Box key={`wf-${runId}`} flexDirection="column" gap="xs" borderStyle="round" paddingX={1}>
-          <Text wrap="truncate-end">
-            <Text weight="medium">{nombre}</Text>
-            {ESPACIO}
-            <Text dimColor={activos === 0} color={activos > 0 ? COLOR.trabajando : undefined} tabular>
-              {cronometro(fin - inicio)}
-            </Text>
-            {tokens > 0 ? (
-              <Text dimColor tabular>
-                {`${ANTES_TOKENS}${compacto(tokens)}`}
-              </Text>
-            ) : null}
-          </Text>
+          {primeraLinea(nombre, cronometro(fin - inicio), activos > 0 ? COLOR.trabajando : undefined, activos === 0, tokens)}
           <Text dimColor size="caption">
             {`${activos} trabajando · ${miembros.length - activos} terminados`}
           </Text>
