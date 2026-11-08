@@ -32,12 +32,19 @@ test('un agente que arranca sale en el panel con un Clawd y una profesión', asy
   expect((await ui.find({ type: 'Text', text: NOMBRES })) !== undefined).toBe(true)
   expect((await ui.find({ type: 'Text', text: /Explore · haiku/ }))?.text).toBe('Explore · haiku')
   expect((await ui.find({ type: 'Svg' }))?.props.width).toBe(72)
+  // Beside the name, the time in the colour of the state, and no tokens until the agent's first request. On the right,
+  // only a small stop button: no icon but the Clawd.
+  expect((await ui.find({ type: 'Text', text: /^0:00$/ }))?.props.color).toBe('#D97757')
+  expect((await ui.find({ type: 'Text', text: /^ · / })) === undefined).toBe(true)
+  expect((await ui.find({ key: 'parar-a1' }))?.props.label).toBe('STOP')
+  expect((await ui.findAll({ type: 'Svg' })).length).toBe(1)
   await ui.unmount()
 
-  // The terminal draws no SVG: there the Clawd's place holds the agent's mark.
+  // The terminal draws no SVG: there the Clawd's place holds the agent's mark, and the time goes without an icon.
   const terminal = await $.ui.mount({ ...PANEL, surface: 'terminal' })
   expect((await terminal.find({ type: 'Text', text: /Busca dónde se cargan/ })) !== undefined).toBe(true)
   expect((await terminal.find({ type: 'Text', text: /^●$/ }))?.props.color).toBe('#D97757')
+  expect((await terminal.find({ type: 'Text', text: /^0:00$/ }))?.props.color).toBe('#D97757')
   await terminal.unmount()
 })
 
@@ -53,7 +60,9 @@ test('al terminar, la fila pasa a terminado', async ($, on) => {
   await $.turn.complete({ answer: 'hecho', durationMs: 5000, isAborted: false, turnId: 't2', agentId: 'a2', reason: 'answer' })
 
   const ui = await $.ui.mount({ ...PANEL, surface: 'desktop' })
-  expect((await ui.find({ type: 'Text', text: /^✓ / })) !== undefined).toBe(true)
+  // The time takes the green of a finished agent, and the stop button goes.
+  expect((await ui.find({ type: 'Text', text: /^0:00$/ }))?.props.color).toBe('#639922')
+  expect((await ui.find({ key: 'parar-a2' })) === undefined).toBe(true)
   expect((await ui.find({ type: 'Text', text: /0 trabajando · 1 terminados/ })) !== undefined).toBe(true)
   await ui.unmount()
 })
@@ -70,8 +79,41 @@ test('la demo llena el panel con cuatro agentes y terminan solos', async ($, on)
   expect((await ui.find({ type: 'Text', text: /^4 trabajando · 0 terminados$/ })) !== undefined).toBe(true)
   await reloj.advance(70_000)
   expect((await ui.find({ type: 'Text', text: /^0 trabajando · 3 terminados · 1 parados o con error$/ })) !== undefined).toBe(true)
-  expect((await ui.find({ type: 'Text', text: /142,8 k tokens/ })) !== undefined).toBe(true)
+  expect((await ui.find({ type: 'Text', text: /^ · 142,8k$/ })) !== undefined).toBe(true)
+  // The longest demo agent ran 62 seconds.
+  expect((await ui.find({ type: 'Text', text: /^1:02$/ })) !== undefined).toBe(true)
   await ui.unmount()
+})
+
+test('el tiempo de un agente se lee como un cronómetro, también pasada la hora, y sus tokens en corto', async ($, on) => {
+  const reloj = mock.clock(on, { now: 1_000_000 })
+  mock.env(on, { OS: 'Linux' })
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: 'h1' }))
+  on('turn.step', async function* (_$, e) {
+    return {
+      turnId: e.turnId,
+      index: e.index,
+      answer: '',
+      toolUses: [],
+      stopReason: 'tool_use',
+      usage: { input_tokens: 4_000, output_tokens: 600, cache_read_input_tokens: 350_000, cache_creation_input_tokens: 0, model: 'claude-haiku-5-5' },
+    }
+  })
+
+  await $.agent.spawn({ prompt: 'Revisa', description: 'Revisa todo el capítulo', subagentType: 'general-purpose' })
+  // An hour, three minutes and twelve seconds later, its last request carried 354,600 tokens.
+  await reloj.advance(3_792_000)
+  for await (const _trozo of $.turn.step({ turnId: 'h1-t', index: 0, model: 'claude-haiku-5-5', messageCount: 3, agentId: 'h1' })) {
+    // The test's own answer streams nothing.
+  }
+
+  for (const surface of ['desktop', 'terminal'] as const) {
+    const ui = await $.ui.mount({ ...PANEL, surface })
+    expect((await ui.find({ type: 'Text', text: /^1:03:12$/ }))?.props.color).toBe('#D97757')
+    expect((await ui.find({ type: 'Text', text: /^ · 354,6k$/ })) !== undefined).toBe(true)
+    await ui.unmount()
+  }
 })
 
 // A store in memory, as the engine keeps the plugin's own, that the test can read back.

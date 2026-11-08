@@ -15,7 +15,7 @@ Mod de Claude Code que abre un panel llamado «Equipo» al lado del chat. Cada a
 Es un proyecto de la comunidad, sin relación con Anthropic. Clawd es la mascota de Claude.
 
 <p align="center">
-  <img src="imagenes/panel.png" width="410" alt="El panel Equipo durante la demo, con cuatro agentes de mentira: tres trabajando, vestidos de su profesión, y uno que ya ha terminado">
+  <img src="imagenes/panel.png" width="424" alt="El panel Equipo durante la demo, con cuatro agentes de mentira: uno trabajando, vestido de su profesión y con su botón STOP, uno mareado porque ha fallado, uno celebrando porque ha terminado y uno dormido porque lo han parado; junto a cada nombre, su tiempo del color de su estado y sus tokens">
   <br>
   <img src="imagenes/pie.png" width="427" alt="El pie del panel, con barras de píxeles: el límite de uso de 5 horas al 41 %, el semanal al 78 %, el contexto al 54 % y a la caché le quedan 59 minutos">
 </p>
@@ -29,7 +29,7 @@ Es un proyecto de la comunidad, sin relación con Anthropic. Clawd es la mascota
 - Los agentes de un workflow se agrupan bajo el nombre del workflow, con su tiempo total y sus tokens.
 - El mismo Clawd aparece junto a la fila del chat donde se lanzó el agente.
 - El panel se abre solo cuando arranca un agente, y también con la orden `/equipo`, por ejemplo para ver el consumo cuando no hay agentes. En la app de escritorio, además, lo abre el botón «Clawds», que está junto al nombre del modelo, en la parte de abajo del cuadro de texto, y si el panel ya se ve, lo cierra.
-- Cada agente suelto tiene un botón «Parar», y cada workflow, «Parar workflow».
+- Cada agente suelto tiene un botón «STOP» para pararlo, y cada workflow, uno «STOP workflow».
 
 Los tokens de cada agente se cuentan como en el resumen de Claude Code: lo que ocupaba su última petición al modelo, contexto y respuesta.
 

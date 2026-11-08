@@ -42,16 +42,23 @@ const nombreDe = (id: string) => NOMBRES.get(id) ?? 'Clawd'
 const modeloCorto = (modelo: string) =>
   /opus/i.test(modelo) ? 'opus' : /sonnet/i.test(modelo) ? 'sonnet' : /haiku/i.test(modelo) ? 'haiku' : /fable/i.test(modelo) ? 'fable' : modelo
 
-const duracion = (ms: number) => {
-  const s = Math.max(0, Math.round(ms / 1000))
-  if (s < 60) return `${s} s`
-  const m = Math.floor(s / 60)
-  if (m < 60) return `${m} min ${String(s % 60).padStart(2, '0')} s`
-  return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} min`
+// An agent's time as a stopwatch reads it, short so the panel can stay narrow: «0:45», «12:05», «1:03:12».
+const cronometro = (ms: number) => {
+  const s = Math.max(0, Math.floor(ms / 1000))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const segundos = String(s % 60).padStart(2, '0')
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${segundos}` : `${m}:${segundos}`
 }
 
-const miles = (n: number) =>
-  n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace('.', ',')} M` : n >= 1000 ? `${(n / 1000).toFixed(1).replace('.', ',')} k` : String(n)
+// A token count in short: «850», «354,6k», «1,2M».
+const compacto = (n: number) =>
+  n >= 999_950 ? `${(n / 1_000_000).toFixed(1).replace('.', ',')}M` : n >= 1000 ? `${(n / 1000).toFixed(1).replace('.', ',')}k` : String(n)
+
+// Between an agent's name and its time, an em space, and around the dot before its tokens, en spaces: wider than plain
+// spaces, so the three stand apart, and no surface folds them.
+const ESPACIO = ' '
+const ANTES_TOKENS = ' · '
 
 type Uso = { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number }
 // As Claude Code counts an agent's tokens: what its last request carried and produced.
@@ -775,37 +782,46 @@ export const register: Register = on => {
     const otros = lista.length - trabajando - terminados
     const resumen = [`${trabajando} trabajando`, `${terminados} terminados`, ...(otros > 0 ? [`${otros} parados o con error`] : [])].join(' · ')
 
-    const fila = (a: Agente) => (
-      <Box key={`fila-${a.id}`} flexDirection="row" alignItems="center" gap="sm">
-        {Svg ? (
-          <Svg source={dibujo(a)} alt={nombreDe(a.profesion)} width={LADO_PANEL} height={LADO_PANEL} isInteractive={true} />
-        ) : (
-          <Text color={COLOR[a.estado]}>{MARCA[a.estado]}</Text>
-        )}
-        <Box flexDirection="column" flexGrow={1} flexShrink={1}>
-          <Text weight="medium" wrap="truncate-end">
-            {nombreDe(a.profesion)}
-          </Text>
-          <Text dimColor wrap="truncate-end">
-            {a.descripcion}
-          </Text>
-          <Text dimColor size="caption" wrap="truncate-end">
-            {[a.tipo, a.modelo, a.esfuerzo].filter(Boolean).join(' · ')}
-          </Text>
-        </Box>
-        <Box flexDirection="column" alignItems="flex-end">
-          <Text color={COLOR[a.estado]}>
-            {MARCA[a.estado]} {duracion((a.fin ?? ahora) - a.inicio)}
-          </Text>
-          <Text dimColor size="caption">
-            {tokensVistos(a, ahora) > 0 ? `${miles(tokensVistos(a, ahora))} tokens` : 'sin tokens aún'}
-          </Text>
+    // One agent: its Clawd; on the first line its name, its time in the colour of its state and its tokens; then its task;
+    // then its type, model and effort. On the right there is only a small stop button, while it works. Nothing else asks
+    // for width, so the panel can be as narrow as wanted, and each line is cut at its end, the tokens first. The time's
+    // figures are all of one width, so the line does not shake as the seconds pass. The Clawd's pose and the time's colour
+    // tell the state; on the terminal, which draws no SVG, the mark in the Clawd's place does.
+    const fila = (a: Agente) => {
+      const tokens = tokensVistos(a, ahora)
+      return (
+        <Box key={`fila-${a.id}`} flexDirection="row" alignItems="center" gap="sm">
+          {Svg ? (
+            <Svg source={dibujo(a)} alt={nombreDe(a.profesion)} width={LADO_PANEL} height={LADO_PANEL} isInteractive={true} />
+          ) : (
+            <Text color={COLOR[a.estado]}>{MARCA[a.estado]}</Text>
+          )}
+          <Box flexDirection="column" flexGrow={1} flexShrink={1}>
+            <Text wrap="truncate-end">
+              <Text weight="medium">{nombreDe(a.profesion)}</Text>
+              {ESPACIO}
+              <Text color={COLOR[a.estado]} tabular>
+                {cronometro((a.fin ?? ahora) - a.inicio)}
+              </Text>
+              {tokens > 0 ? (
+                <Text dimColor tabular>
+                  {`${ANTES_TOKENS}${compacto(tokens)}`}
+                </Text>
+              ) : null}
+            </Text>
+            <Text dimColor wrap="truncate-end">
+              {a.descripcion}
+            </Text>
+            <Text dimColor size="caption" wrap="truncate-end">
+              {[a.tipo, a.modelo, a.esfuerzo].filter(Boolean).join(' · ')}
+            </Text>
+          </Box>
           {a.estado === 'trabajando' && !a.workflow ? (
-            <Button key={`parar-${a.id}`} label="Parar" onPress={() => void (a.demo ? terminaDemo($, a.id, 'parado') : parar($, a.id))} />
+            <Button key={`parar-${a.id}`} label="STOP" onPress={() => void (a.demo ? terminaDemo($, a.id, 'parado') : parar($, a.id))} />
           ) : null}
         </Box>
-      </Box>
-    )
+      )
+    }
 
     const sueltos = lista.filter(a => !a.workflow)
     const orden = (x: Agente, y: Agente) =>
@@ -825,17 +841,23 @@ export const register: Register = on => {
       const ordenados = [...miembros].sort((x, y) => (x.workflow?.indice ?? 0) - (y.workflow?.indice ?? 0))
       return (
         <Box key={`wf-${runId}`} flexDirection="column" gap="xs" borderStyle="round" paddingX={1}>
-          <Box flexDirection="row" justifyContent="space-between" alignItems="center" gap="sm">
-            <Text weight="medium" wrap="truncate-end">
-              {nombre}
+          <Text wrap="truncate-end">
+            <Text weight="medium">{nombre}</Text>
+            {ESPACIO}
+            <Text dimColor={activos === 0} color={activos > 0 ? COLOR.trabajando : undefined} tabular>
+              {cronometro(fin - inicio)}
             </Text>
-            <Text dimColor>{duracion(fin - inicio)}</Text>
-          </Box>
+            {tokens > 0 ? (
+              <Text dimColor tabular>
+                {`${ANTES_TOKENS}${compacto(tokens)}`}
+              </Text>
+            ) : null}
+          </Text>
           <Text dimColor size="caption">
-            {`${activos} trabajando · ${miembros.length - activos} terminados · ${miles(tokens)} tokens`}
+            {`${activos} trabajando · ${miembros.length - activos} terminados`}
           </Text>
           {ordenados.map(fila)}
-          {activos > 0 ? <Button key={`parar-wf-${runId}`} label="Parar workflow" onPress={() => void parar($, runId)} /> : null}
+          {activos > 0 ? <Button key={`parar-wf-${runId}`} label="STOP workflow" onPress={() => void parar($, runId)} /> : null}
         </Box>
       )
     }
