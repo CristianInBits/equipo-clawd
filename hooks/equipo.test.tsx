@@ -169,20 +169,20 @@ test('el botón de sonido lo apaga y lo enciende, y lo guarda para las demás se
   }
 
   const ui = await $.ui.mount({ ...PANEL, surface: 'desktop' })
-  expect((await ui.find({ key: 'sonido' }))?.props.label).toBe('🔊 Sonido: sí')
+  expect((await ui.find({ key: 'sonido' }))?.props.label).toBe('🔊 sonido')
   await $.agent.spawn(encargo('Uno', 'Primer encargo', 'Explore'))
   await termina('s1')
   expect(sonidos).toBe(1)
 
   await ui.press({ key: 'sonido' })
-  expect((await ui.find({ key: 'sonido' }))?.props.label).toBe('🔇 Sonido: no')
+  expect((await ui.find({ key: 'sonido' }))?.props.label).toBe('🔇 sonido')
   expect(guardado.get('sonido')).toBe(false)
   await $.agent.spawn(encargo('Dos', 'Segundo encargo', 'Explore'))
   await termina('s2')
   expect(sonidos).toBe(1)
 
   await ui.press({ key: 'sonido' })
-  expect((await ui.find({ key: 'sonido' }))?.props.label).toBe('🔊 Sonido: sí')
+  expect((await ui.find({ key: 'sonido' }))?.props.label).toBe('🔊 sonido')
   expect(guardado.get('sonido')).toBe(true)
   await ui.unmount()
 })
@@ -504,4 +504,47 @@ test('/equipo resumen dibuja la forma resumida también con el panel entero, y /
   expect((await terminal.find({ type: 'Text', text: /^●$/ }))?.props.color).toBe('#D97757')
   expect((await terminal.findAll({ type: 'Svg' })).length).toBe(0)
   await terminal.unmount()
+})
+
+test('el panel no pinta fondo propio, para que se vea el fondo que tenga la app', async ($, on) => {
+  const reloj = mock.clock(on, { now: 1_000_000 })
+  mock.env(on, { OS: 'Linux' })
+  almacen(on)
+  on('ui.toast', () => ({ value: undefined }))
+  on('audio.play', () => ({ value: undefined }))
+  const fondos: (string | undefined)[] = []
+  on('ui.open', (_$, e) => {
+    fondos.push(e.backgroundColor)
+    return { value: { isPlaced: true } }
+  })
+  on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: 'f1' }))
+
+  // /equipo, the demo and an agent that starts: every open asks for it again.
+  await $.command.run(ordenEquipo(''))
+  await $.command.run(ordenEquipo('demo'))
+  await $.agent.spawn(encargo('Busca', 'Busca dónde se cargan los iconos', 'Explore'))
+  expect(fondos).toEqual(['transparent', 'transparent', 'transparent'])
+  await reloj.advance(70_000)
+})
+
+test('los botones de arriba empiezan a la izquierda, como los Clawds, y la escoba quita los terminados', async ($, on) => {
+  const reloj = mock.clock(on, { now: 5_000_000 })
+  mock.env(on, { OS: 'Linux' })
+  almacen(on)
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('ui.toast', () => ({ value: undefined }))
+  on('audio.play', () => ({ value: undefined }))
+
+  await $.command.run(ordenEquipo('demo'))
+  const ui = await $.ui.mount({ ...PANEL, surface: 'desktop' })
+  // While the four work, there is nothing to clear yet.
+  expect((await ui.find({ key: 'controles' }))?.props.justifyContent).toBe('flex-start')
+  expect((await ui.find({ key: 'limpiar' })) === undefined).toBe(true)
+
+  // Once they are over: first the sound switch, which never moves, then the broom.
+  await reloj.advance(70_000)
+  expect((await ui.findAll({ type: 'Button' })).map(b => b.props.label)).toEqual(['🔊 sonido', '🧹 terminados'])
+  await ui.press({ key: 'limpiar' })
+  expect((await ui.find({ type: 'Text', text: /Aún no hay agentes/ })) !== undefined).toBe(true)
+  await ui.unmount()
 })

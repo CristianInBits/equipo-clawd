@@ -15,7 +15,7 @@ Mod de Claude Code que abre un panel llamado «Equipo» al lado del chat. Cada a
 Es un proyecto de la comunidad, sin relación con Anthropic. Clawd es la mascota de Claude.
 
 <p align="center">
-  <img src="imagenes/panel.png" width="424" alt="El panel Equipo durante la demo, con cuatro agentes de mentira: uno trabajando, vestido de su profesión y con su botón STOP, uno mareado porque ha fallado, uno celebrando porque ha terminado y uno dormido porque lo han parado; junto a cada nombre, su tiempo del color de su estado y sus tokens">
+  <img src="imagenes/panel.png" width="425" alt="El panel Equipo durante la demo, con cuatro agentes de mentira: uno trabajando, vestido de su profesión y con su botón STOP, uno mareado porque ha fallado, uno celebrando porque ha terminado y uno dormido porque lo han parado; junto a cada nombre, su tiempo del color de su estado y sus tokens, y arriba a la izquierda, los botones «🔊 sonido» y «🧹 terminados»">
   <br>
   <img src="imagenes/pie.png" width="427" alt="El pie del panel, con barras de píxeles: el límite de uso de 5 horas al 41 %, el semanal al 78 %, el contexto al 54 % y a la caché le quedan 59 minutos">
   <br>
@@ -26,7 +26,8 @@ Es un proyecto de la comunidad, sin relación con Anthropic. Clawd es la mascota
   - cuánto llevas gastado de tus límites de uso de 5 horas y de la semana, y cuándo se renueva cada uno. Claude Code solo los conoce cuando Claude responde, así que, al abrir una sesión y hasta su primera respuesta, el panel enseña los últimos que conoció, con la hora en que los leyó;
   - cuánto ocupa la conversación en el contexto del modelo;
   - y cuánto le queda a la caché de la conversación antes de enfriarse. La caché dura una hora desde la última petición de Claude, salvo en uso extra, por encima de los límites de tu plan, donde dura cinco minutos y el panel no lo sabe. Si se enfría, el próximo mensaje vuelve a cargar toda la conversación, lo que tarda más y consume más de tus límites.
-- El botón «🔊 Sonido: sí» de la parte de arriba del panel quita los sonidos, y al pulsarlo otra vez, que dirá «🔇 Sonido: no», los vuelve a poner. También se puede con `/equipo sonido`, que cambia al contrario de como esté, o con `/equipo sonido no` y `/equipo sonido sí`. Lo que elijas se guarda y vale para todas tus sesiones, también las que abras después. Los avisos salen siempre.
+- El botón «🔊 sonido», arriba a la izquierda del panel, quita los sonidos, y al pulsarlo otra vez, que dirá «🔇 sonido», los vuelve a poner. También se puede con `/equipo sonido`, que cambia al contrario de como esté, o con `/equipo sonido no` y `/equipo sonido sí`. Lo que elijas se guarda y vale para todas tus sesiones, también las que abras después. Los avisos salen siempre.
+- Cuando hay agentes que ya han acabado, a la derecha del botón del sonido aparece el botón «🧹 terminados», que los quita del panel.
 - `/equipo demo` llena el panel con cuatro agentes de mentira durante un minuto, sin gastar tokens, para verlo o hacer capturas.
 - Los agentes de un workflow se agrupan bajo el nombre del workflow, con su tiempo total y sus tokens.
 - El mismo Clawd aparece junto a la fila del chat donde se lanzó el agente.

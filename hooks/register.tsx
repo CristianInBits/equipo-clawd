@@ -429,7 +429,7 @@ async function lanzaDemo($: EngineInterface) {
     return nueva
   })
   await ajustaReloj($)
-  await $.ui.open({ id: PANEL, title: TITULO })
+  await abreVentana($)
   demos.forEach(d => $.clock.after(d.dura, () => void terminaDemo($, d.id, d.final)))
 }
 
@@ -451,12 +451,18 @@ async function terminaDemo($: EngineInterface, id: string, estado: Estado) {
   await ajustaReloj($)
 }
 
+// Every open of the panel, which sets its look anew each time: it paints no background of its own, so a background the
+// person set for the app shows through it, and with none, the app's own colour does.
+function abreVentana($: EngineInterface, pide: { focus?: true; placement?: 'widget' } = {}) {
+  return $.ui.open({ id: PANEL, title: TITULO, backgroundColor: 'transparent', ...pide })
+}
+
 // Opens the panel with fresh figures, as /equipo does: the sound switch as stored and the engine's usage. With focus,
 // the surface may raise a panel that was open behind another one.
 async function abrePanel($: EngineInterface, focus?: true) {
   await sonidoActivo($)
   await leeConsumo($)
-  await $.ui.open({ id: PANEL, title: TITULO, ...(focus ? { focus } : {}) })
+  await abreVentana($, focus ? { focus } : {})
 }
 
 // The «Clawds» button under the prompt: it closes the panel while it is the one shown, and otherwise opens it.
@@ -603,7 +609,7 @@ export const register: Register = on => {
       await ajustaReloj($)
       // Unasked, the panel asks to start minimized, as a widget: a surface without widgets opens it whole, and one where
       // the panel already shows keeps it as it is.
-      void $.ui.open({ id: PANEL, title: TITULO, placement: 'widget' })
+      void abreVentana($, { placement: 'widget' })
     } catch {
       // Never hold an agent back for the panel's sake.
     }
@@ -721,11 +727,14 @@ export const register: Register = on => {
     const estadoCache = await read($, cache)
     const ahora = await $.clock.now()
 
-    // The switch shows what is in force, and a press asks for the other way round from what it shows.
+    // Both buttons are an emoji and one lowercase word. The switch's speaker, muted or not, shows what is in force, and a
+    // press asks for the other way round. The buttons start at the left edge, as the Clawds and the foot's rows do: first
+    // the switch, which is always there and so never moves, then the broom that clears the agents that are over, while
+    // there are any.
     const controles = (limpiar: boolean) => (
-      <Box flexDirection="row" flexWrap="wrap" justifyContent="flex-end" alignItems="center" gap="sm">
-        {limpiar ?<Button key="limpiar" label="Limpiar terminados" onPress={() => void update($, agentes, l => l.filter(a => a.estado === 'trabajando'))} /> : null}
-        <Button key="sonido" label={conSonido ? '🔊 Sonido: sí' : '🔇 Sonido: no'} onPress={() => void ponSonido($, !conSonido)} />
+      <Box key="controles" flexDirection="row" flexWrap="wrap" justifyContent="flex-start" alignItems="center" gap="sm">
+        <Button key="sonido" label={conSonido ? '🔊 sonido' : '🔇 sonido'} onPress={() => void ponSonido($, !conSonido)} />
+        {limpiar ? <Button key="limpiar" label="🧹 terminados" onPress={() => void update($, agentes, l => l.filter(a => a.estado === 'trabajando'))} /> : null}
       </Box>
     )
 
