@@ -37,8 +37,11 @@ export type Consumo = {
 // The main conversation's prompt cache: when its last request that got an answer went out, and whether a turn of it is running.
 export type Cache = { ultimaPeticion?: number; enUso: boolean }
 
+// Which form the panel draws while the surface seats it whole: complete, or the glance it draws as a widget.
+export type Vista = 'completa' | 'resumen'
+
 declare module 'claude-code' {
   interface PluginState {
-    'equipo-clawd': { agentes: Shaped<Agente[]>; tic: number; sonido: boolean; consumo: Shaped<Consumo>; cache: Shaped<Cache> }
+    'equipo-clawd': { agentes: Shaped<Agente[]>; tic: number; sonido: boolean; vista: Vista; consumo: Shaped<Consumo>; cache: Shaped<Cache> }
   }
 }

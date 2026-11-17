@@ -18,6 +18,8 @@ Es un proyecto de la comunidad, sin relación con Anthropic. Clawd es la mascota
   <img src="imagenes/panel.png" width="424" alt="El panel Equipo durante la demo, con cuatro agentes de mentira: uno trabajando, vestido de su profesión y con su botón STOP, uno mareado porque ha fallado, uno celebrando porque ha terminado y uno dormido porque lo han parado; junto a cada nombre, su tiempo del color de su estado y sus tokens">
   <br>
   <img src="imagenes/pie.png" width="427" alt="El pie del panel, con barras de píxeles: el límite de uso de 5 horas al 41 %, el semanal al 78 %, el contexto al 54 % y a la caché le quedan 59 minutos">
+  <br>
+  <img src="imagenes/resumen.png" width="213" alt="La forma resumida del panel durante la demo: cuatro Clawds trabajando y, debajo, «4 trabajando · 0:08»">
 </p>
 
 - Al pie del panel, el consumo, con barras de píxeles que se llenan en verde, en ámbar desde la mitad y en rojo desde el 80 %:
@@ -30,6 +32,7 @@ Es un proyecto de la comunidad, sin relación con Anthropic. Clawd es la mascota
 - El mismo Clawd aparece junto a la fila del chat donde se lanzó el agente.
 - El panel se abre solo cuando arranca un agente, y también con la orden `/equipo`, por ejemplo para ver el consumo cuando no hay agentes. En la app de escritorio, además, lo abre el botón «Clawds», que está junto al nombre del modelo, en la parte de abajo del cuadro de texto, y si el panel ya se ve, lo cierra.
 - Cada agente suelto tiene un botón «STOP» para pararlo, y cada workflow, uno «STOP workflow».
+- La forma resumida del panel, sin botones, enseña de un vistazo los Clawds que trabajan, cuántos son y el tiempo del que más lleva, y, si no trabaja nadie, las barras de los límites de uso. `/equipo resumen` abre el panel así, y `/equipo` lo devuelve a la forma completa. En las versiones de la app de escritorio que pueden minimizar un panel, sale sola al minimizarlo, y cuando arranca un agente, el panel pide abrirse ya minimizado.
 
 Los tokens de cada agente se cuentan como en el resumen de Claude Code: lo que ocupaba su última petición al modelo, contexto y respuesta.
 

@@ -17,7 +17,27 @@ const PANEL = {
   },
 } as const
 
+// The same panel minimized to a widget in the desktop app, in the chat's bottom right corner.
+const WIDGET = { ...PANEL, props: { ...PANEL.props, placement: 'widget', anchoredEdges: ['bottom', 'right'] } } as const
+
 const NOMBRES = new RegExp(`^(${PROFESIONES.map(p => p.nombre).join('|')})$`)
+
+// An Agent call as the engine raises it: the task the test chooses, and what the engine stamps besides.
+const encargo = (prompt: string, description: string, subagentType: string) =>
+  ({
+    tool_use_id: `toolu-${prompt}`,
+    prompt,
+    description,
+    subagentType,
+    provider: { plugin: 'engine', tier: 'core' },
+    parentModel: 'claude-opus-5-5',
+    background: false,
+    fork: false,
+  }) as const
+
+// /equipo as the person types it at the prompt.
+const ordenEquipo = (args: string) =>
+  ({ command: 'equipo', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 120 } }) as const
 
 test('un agente que arranca sale en el panel con un Clawd y una profesión', async ($, on) => {
   mock.clock(on, { now: 1_000_000 })
@@ -25,7 +45,7 @@ test('un agente que arranca sale en el panel con un Clawd y una profesión', asy
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: 'a1' }))
 
-  await $.agent.spawn({ prompt: 'Busca', description: 'Busca dónde se cargan los iconos', subagentType: 'Explore' })
+  await $.agent.spawn(encargo('Busca', 'Busca dónde se cargan los iconos', 'Explore'))
 
   const ui = await $.ui.mount({ ...PANEL, surface: 'desktop' })
   expect((await ui.find({ type: 'Text', text: /Busca dónde se cargan/ }))?.text).toBe('Busca dónde se cargan los iconos')
@@ -56,7 +76,7 @@ test('al terminar, la fila pasa a terminado', async ($, on) => {
   on('agent.spawn', () => ({ model: 'claude-sonnet-5-5', agentId: 'a2' }))
   on('turn.complete', () => ({ text: 'hecho' }))
 
-  await $.agent.spawn({ prompt: 'Escribe', description: 'Escribe el script', subagentType: 'general-purpose' })
+  await $.agent.spawn(encargo('Escribe', 'Escribe el script', 'general-purpose'))
   await $.turn.complete({ answer: 'hecho', durationMs: 5000, isAborted: false, turnId: 't2', agentId: 'a2', reason: 'answer' })
 
   const ui = await $.ui.mount({ ...PANEL, surface: 'desktop' })
@@ -73,7 +93,7 @@ test('la demo llena el panel con cuatro agentes y terminan solos', async ($, on)
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('audio.play', () => ({ value: undefined }))
 
-  await $.command.run({ command: 'equipo', args: 'demo' })
+  await $.command.run(ordenEquipo('demo'))
 
   const ui = await $.ui.mount({ ...PANEL, surface: 'desktop' })
   expect((await ui.find({ type: 'Text', text: /^4 trabajando · 0 terminados$/ })) !== undefined).toBe(true)
@@ -101,7 +121,7 @@ test('el tiempo de un agente se lee como un cronómetro, también pasada la hora
     }
   })
 
-  await $.agent.spawn({ prompt: 'Revisa', description: 'Revisa todo el capítulo', subagentType: 'general-purpose' })
+  await $.agent.spawn(encargo('Revisa', 'Revisa todo el capítulo', 'general-purpose'))
   // An hour, three minutes and twelve seconds later, its last request carried 354,600 tokens.
   await reloj.advance(3_792_000)
   for await (const _trozo of $.turn.step({ turnId: 'h1-t', index: 0, model: 'claude-haiku-5-5', messageCount: 3, agentId: 'h1' })) {
@@ -150,14 +170,14 @@ test('el botón de sonido lo apaga y lo enciende, y lo guarda para las demás se
 
   const ui = await $.ui.mount({ ...PANEL, surface: 'desktop' })
   expect((await ui.find({ key: 'sonido' }))?.props.label).toBe('🔊 Sonido: sí')
-  await $.agent.spawn({ prompt: 'Uno', description: 'Primer encargo', subagentType: 'Explore' })
+  await $.agent.spawn(encargo('Uno', 'Primer encargo', 'Explore'))
   await termina('s1')
   expect(sonidos).toBe(1)
 
   await ui.press({ key: 'sonido' })
   expect((await ui.find({ key: 'sonido' }))?.props.label).toBe('🔇 Sonido: no')
   expect(guardado.get('sonido')).toBe(false)
-  await $.agent.spawn({ prompt: 'Dos', description: 'Segundo encargo', subagentType: 'Explore' })
+  await $.agent.spawn(encargo('Dos', 'Segundo encargo', 'Explore'))
   await termina('s2')
   expect(sonidos).toBe(1)
 
@@ -169,7 +189,7 @@ test('el botón de sonido lo apaga y lo enciende, y lo guarda para las demás se
 
 test('la orden /equipo sonido lo apaga, lo enciende o le da la vuelta a lo guardado', async ($, on) => {
   const guardado = almacen(on, { sonido: false })
-  const orden = async (args: string) => (await $.command.run({ command: 'equipo', args })).text ?? ''
+  const orden = async (args: string) => (await $.command.run(ordenEquipo(args))).text ?? ''
 
   expect(await orden('sonido')).toMatch(/activados/)
   expect(guardado.get('sonido')).toBe(true)
@@ -193,14 +213,15 @@ test('en Windows, la ruta del sonido va en una variable de entorno y no dentro d
   on('agent.spawn', () => ({ model: 'claude-sonnet-5-5', agentId: 'w1' }))
   on('turn.complete', () => ({ text: 'hecho' }))
 
-  await $.agent.spawn({ prompt: 'Escribe', description: 'Escribe el script', subagentType: 'general-purpose' })
+  await $.agent.spawn(encargo('Escribe', 'Escribe el script', 'general-purpose'))
   await $.turn.complete({ answer: 'hecho', durationMs: 5000, isAborted: false, turnId: 'tw1', agentId: 'w1', reason: 'answer' })
   await reloj.settle()
 
   expect(llamadas).toHaveLength(1)
-  expect(llamadas[0].argv[0]).toBe('powershell.exe')
-  expect(llamadas[0].argv[4]).toBe('(New-Object Media.SoundPlayer $env:EQUIPO_CLAWD_SONIDO).PlaySync()')
-  expect(llamadas[0].init?.env?.EQUIPO_CLAWD_SONIDO ?? '').toMatch(/\\assets\\victoria\.wav$/)
+  const [llamada] = llamadas
+  expect(llamada?.argv[0]).toBe('powershell.exe')
+  expect(llamada?.argv[4]).toBe('(New-Object Media.SoundPlayer $env:EQUIPO_CLAWD_SONIDO).PlaySync()')
+  expect(llamada?.init?.env?.EQUIPO_CLAWD_SONIDO ?? '').toMatch(/\\assets\\victoria\.wav$/)
 })
 
 test('sin agentes, el panel lo dice, y el pie espera a la primera respuesta', async ($, on) => {
@@ -238,11 +259,11 @@ test('el pie enseña los límites de uso y el contexto, con los colores del sem�
   const ui = await $.ui.mount({ ...PANEL, surface: 'desktop' })
   const barras = (await ui.findAll({ type: 'Svg' })).filter(s => String(s.props.alt).includes(': '))
   expect(barras.map(s => s.props.alt)).toEqual(['5 horas: 9 %', 'Semana: 74 %', 'Contexto: 22 %'])
-  expect(String(barras[0].props.source)).toMatch(/#639922/)
-  expect(String(barras[1].props.source)).toMatch(/#EF9F27/)
+  expect(String(barras[0]?.props.source)).toMatch(/#639922/)
+  expect(String(barras[1]?.props.source)).toMatch(/#EF9F27/)
   // The bar brings its own size and is drawn with no width of its own, so a narrow panel can shrink it.
-  expect(barras[0].props.width).toBe(undefined)
-  expect(String(barras[0].props.source)).toMatch(/width="138" height="8"/)
+  expect(barras[0]?.props.width).toBe(undefined)
+  expect(String(barras[0]?.props.source)).toMatch(/width="138" height="8"/)
   await ui.unmount()
   const terminal = await $.ui.mount({ ...PANEL, surface: 'terminal' })
   expect((await terminal.findAll({ type: 'Svg' })).length).toBe(0)
@@ -268,7 +289,7 @@ test('al arrancar, el pie enseña los últimos límites guardados, con su hora, 
   on('session.usage', () => ({ value: { startedAt: 0, context: { tokens: 21_000, window: 1_000_000, percent: 2 }, rateLimits: [] } }))
   on('session.measure', (_$, e) => ({ changed: e.changed }))
 
-  await $.command.run({ command: 'equipo', args: '' })
+  await $.command.run(ordenEquipo(''))
   const ui = await $.ui.mount({ ...PANEL, surface: 'desktop' })
   const barras = async () => (await ui.findAll({ type: 'Svg' })).map(s => String(s.props.alt)).filter(alt => alt.includes(': '))
   expect(await barras()).toEqual(['5 horas: 0 %', 'Semana: 78 %', 'Contexto: 2 %'])
@@ -399,5 +420,88 @@ test('el botón Clawds de debajo del cuadro de texto abre el panel y, si se ve, 
   const terminal = await $.ui.mount({ plugin: 'equipo-clawd', component: 'SessionMode', surface: 'terminal', props: { modes: ['focus'] } })
   expect((await terminal.find({ type: 'Text', text: /^focus$/ })) !== undefined).toBe(true)
   expect((await terminal.find({ key: 'equipo' })) === undefined).toBe(true)
+  await terminal.unmount()
+})
+
+test('minimizado, el panel enseña de un vistazo los Clawds que trabajan, cuántos son y el tiempo del que más lleva, sin botones', async ($, on) => {
+  const reloj = mock.clock(on, { now: 1_000_000 })
+  mock.env(on, { OS: 'Linux' })
+  const pedidos: (string | undefined)[] = []
+  on('ui.open', (_$, e) => {
+    pedidos.push(e.placement)
+    return { value: { isPlaced: true } }
+  })
+  let n = 0
+  on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: `v${++n}` }))
+
+  await $.agent.spawn(encargo('Uno', 'Primer encargo', 'Explore'))
+  // Unasked, the panel asks to start minimized.
+  expect(pedidos).toEqual(['widget'])
+  // A minute and five seconds later, four more agents start.
+  await reloj.advance(65_000)
+  for (const tarea of ['Dos', 'Tres', 'Cuatro', 'Cinco']) await $.agent.spawn(encargo(tarea, `Encargo ${tarea}`, 'Explore'))
+
+  const ui = await $.ui.mount({ ...WIDGET, surface: 'desktop' })
+  const clawds = await ui.findAll({ type: 'Svg' })
+  expect(clawds.map(s => s.props.width)).toEqual([40, 40, 40, 40])
+  expect((await ui.find({ type: 'Text', text: /^\+1$/ })) !== undefined).toBe(true)
+  expect((await ui.find({ type: 'Text', text: /^5 trabajando$/ })) !== undefined).toBe(true)
+  expect((await ui.find({ type: 'Text', text: /^1:05$/ }))?.props.color).toBe('#D97757')
+  // Clicks may not reach a widget, so it has no buttons; anchored on the right, it lines up on the right.
+  expect((await ui.findAll({ type: 'Button' })).length).toBe(0)
+  expect((await ui.find({ key: 'vistazo' }))?.props.alignItems).toBe('flex-end')
+  await ui.unmount()
+})
+
+test('minimizado y sin nadie trabajando, el panel enseña las barras de 5 horas y de la semana', async ($, on) => {
+  mock.clock(on, { now: new Date(2026, 10, 6, 17, 40).getTime() })
+  on('session.measure', (_$, e) => ({ changed: e.changed }))
+  await $.session.measure({
+    context: { tokens: 217_608, window: 1_000_000, percent: 22 },
+    rateLimits: [
+      { kind: 'seven_day', percentUsed: 84, resetsAt: new Date(2026, 10, 9, 6, 0).toISOString() },
+      { kind: 'five_hour', percentUsed: 9, resetsAt: new Date(2026, 10, 6, 19, 50).toISOString() },
+    ],
+    changed: ['context', 'rateLimits'],
+  })
+
+  const ui = await $.ui.mount({ ...WIDGET, surface: 'desktop' })
+  expect((await ui.find({ type: 'Text', text: /^Ningún agente trabajando$/ })) !== undefined).toBe(true)
+  // Only the usage windows, in the foot's order and colours, with no icon, no note and no context.
+  const barras = await ui.findAll({ type: 'Svg' })
+  expect(barras.map(s => s.props.alt)).toEqual(['5 horas: 9 %', 'Semana: 84 %'])
+  expect((await ui.find({ type: 'Text', text: /^84 %$/ }))?.props.color).toBe('#E24B4A')
+  expect((await ui.find({ type: 'Text', text: /se renueva/ })) === undefined).toBe(true)
+  expect((await ui.findAll({ type: 'Button' })).length).toBe(0)
+  await ui.unmount()
+})
+
+test('/equipo resumen dibuja la forma resumida también con el panel entero, y /equipo vuelve a la completa', async ($, on) => {
+  mock.clock(on, { now: 1_000_000 })
+  mock.env(on, { OS: 'Linux' })
+  almacen(on)
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: 'r1' }))
+  await $.agent.spawn(encargo('Busca', 'Busca dónde se cargan los iconos', 'Explore'))
+
+  expect((await $.command.run(ordenEquipo('resumen'))).text).toMatch(/forma resumida/)
+  const ui = await $.ui.mount({ ...PANEL, surface: 'desktop' })
+  expect((await ui.find({ type: 'Text', text: /^1 trabajando$/ })) !== undefined).toBe(true)
+  expect((await ui.find({ type: 'Svg' }))?.props.width).toBe(40)
+  expect((await ui.find({ key: 'sonido' })) === undefined).toBe(true)
+  // Not anchored to any edge, the glance starts on the left.
+  expect((await ui.find({ key: 'vistazo' }))?.props.alignItems).toBe('flex-start')
+
+  await $.command.run(ordenEquipo(''))
+  expect((await ui.find({ type: 'Svg' }))?.props.width).toBe(72)
+  expect((await ui.find({ type: 'Text', text: /Busca dónde se cargan/ })) !== undefined).toBe(true)
+  expect((await ui.find({ key: 'sonido' })) !== undefined).toBe(true)
+  await ui.unmount()
+
+  // The terminal draws no SVG: there the glance shows each agent at work as its mark.
+  await $.command.run(ordenEquipo('resumen'))
+  const terminal = await $.ui.mount({ ...PANEL, surface: 'terminal' })
+  expect((await terminal.find({ type: 'Text', text: /^●$/ }))?.props.color).toBe('#D97757')
+  expect((await terminal.findAll({ type: 'Svg' })).length).toBe(0)
   await terminal.unmount()
 })

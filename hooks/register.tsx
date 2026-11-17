@@ -2,6 +2,8 @@
 // with its task, type, model, effort, tokens and time; a toast and a short chime when it ends.
 // At its foot, the usage limits, the context window and how long the prompt cache stays warm.
 // /equipo opens it and, in the desktop app, so does a small «Clawds» button under the prompt.
+// Minimized to a widget in the desktop app, or after /equipo resumen, it draws a glance instead: the Clawds at work,
+// how many and the longest time, or, with nobody at work, the usage windows.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SessionContextUsage, SessionRateLimit } from 'claude-code'
 
@@ -13,6 +15,9 @@ const TITULO = 'Equipo'
 // Side of each Clawd's drawing, in CSS pixels: in the panel's rows and beside the chat's Agent row.
 const LADO_PANEL = 72
 const LADO_CHAT = 30
+// The glance: each Clawd at work at this side, and at most this many of them, then «+N».
+const LADO_VISTAZO = 40
+const MAX_VISTAZO = 4
 // Change the tag when Agente's fields change: it declines what an earlier version stored.
 const agentes = atom({ plugin: 'equipo-clawd', key: 'agentes' } as const, [], { shape: 'agentes-1' })
 const tic = atom({ plugin: 'equipo-clawd', key: 'tic' } as const, 0)
@@ -20,6 +25,9 @@ const tic = atom({ plugin: 'equipo-clawd', key: 'tic' } as const, 0)
 // so switching it in one session silences them all; this copy in $.state is what the panel draws.
 const sonido = atom({ plugin: 'equipo-clawd', key: 'sonido' } as const, true)
 const CLAVE_SONIDO = 'sonido'
+// Which form the panel draws where the surface seats it whole: complete, or the glance a widget draws, which
+// /equipo resumen asks for (a desktop app without widgets shows it no other way). /equipo brings back the complete one.
+const vista = atom({ plugin: 'equipo-clawd', key: 'vista' } as const, 'completa')
 // The panel's foot: what the engine measured last (usage windows and context window), and the main
 // conversation's prompt cache (when its last answered request went out, and whether a turn of it runs).
 // Consumo's fields leidos and recordados came later, both optional, so what the tag consumo-1 stored still fits.
@@ -76,7 +84,8 @@ const eligeProfesion = (lista: readonly Agente[]) => {
   let opciones = PROFESIONES.filter(p => !ocupadas.has(p.id) && !recientes.has(p.id))
   if (opciones.length === 0) opciones = PROFESIONES.filter(p => !ocupadas.has(p.id))
   if (opciones.length === 0) opciones = [...PROFESIONES]
-  return opciones[Math.floor(Math.random() * opciones.length)].id
+  // Never empty: at worst it holds every profession.
+  return opciones[Math.floor(Math.random() * opciones.length)]!.id
 }
 
 // The foot's colours, a traffic light: green, amber from half, red from 80 %. Every bar fills as its limit nears.
@@ -214,10 +223,10 @@ const filaCache = (uso: Consumo, c: Cache, ahora: number): FilaPie[] => {
   return [{ ...base, p: (pasado / CADUCIDAD_CACHE) * 100, cifra: quedan(CADUCIDAD_CACHE - pasado), nota: 'hasta que se enfríe' }]
 }
 
-// The foot's rows: the usage windows, the context window and the cache, each only once there is a figure for it.
-// A window whose renewal time has passed starts over, so it shows empty until Claude answers again.
-const filasPie = (uso: Consumo, c: Cache, ahora: number): FilaPie[] => {
-  const limites = [...uso.limites]
+// The usage windows' rows, in the foot's order. A window whose renewal time has passed starts over, so it shows empty
+// until Claude answers again.
+const filasLimites = (uso: Consumo, ahora: number): FilaPie[] =>
+  [...uso.limites]
     .sort((x, y) => (VENTANAS[x.tipo]?.orden ?? 9) - (VENTANAS[y.tipo]?.orden ?? 9))
     .map(l => {
       const renovado = l.renueva !== undefined && Date.parse(l.renueva) <= ahora
@@ -231,6 +240,10 @@ const filasPie = (uso: Consumo, c: Cache, ahora: number): FilaPie[] => {
         nota: l.renueva ? (renovado ? renovada(l.renueva, ahora) : renovacion(l.renueva, ahora)) : '',
       }
     })
+
+// The foot's rows: the usage windows, the context window and the cache, each only once there is a figure for it.
+const filasPie = (uso: Consumo, c: Cache, ahora: number): FilaPie[] => {
+  const limites = filasLimites(uso, ahora)
   const ctx = uso.contexto
   const contexto: FilaPie[] =
     ctx?.porcentaje !== undefined
@@ -393,12 +406,12 @@ const DEMO: readonly { descripcion: string; tipo: string; modelo: string; esfuer
 
 async function lanzaDemo($: EngineInterface) {
   const ahora = await $.clock.now()
-  const ids = DEMO.map((_, i) => `demo-${ahora}-${i}`)
+  const demos = DEMO.map((d, i) => ({ ...d, id: `demo-${ahora}-${i}` }))
   await update($, agentes, lista => {
     let nueva = lista.filter(a => !a.demo)
-    DEMO.forEach((d, i) => {
+    demos.forEach(d => {
       const agente: Agente = {
-        id: ids[i],
+        id: d.id,
         toolUseId: '',
         descripcion: d.descripcion,
         tipo: d.tipo,
@@ -417,7 +430,7 @@ async function lanzaDemo($: EngineInterface) {
   })
   await ajustaReloj($)
   await $.ui.open({ id: PANEL, title: TITULO })
-  DEMO.forEach((d, i) => $.clock.after(d.dura, () => void terminaDemo($, ids[i], d.final)))
+  demos.forEach(d => $.clock.after(d.dura, () => void terminaDemo($, d.id, d.final)))
 }
 
 async function terminaDemo($: EngineInterface, id: string, estado: Estado) {
@@ -470,8 +483,8 @@ export const register: Register = on => {
       await $.command.register({
         name: 'equipo',
         description:
-          'Abre el panel Equipo, con los agentes de esta sesión; con «demo», cuatro agentes de mentira durante un minuto; con «sonido», activa o desactiva los sonidos (o «sonido sí», «sonido no»)',
-        argumentHint: '[demo | sonido [sí|no]]',
+          'Abre el panel Equipo, con los agentes de esta sesión; con «resumen», en su forma resumida; con «demo», cuatro agentes de mentira durante un minuto; con «sonido», activa o desactiva los sonidos (o «sonido sí», «sonido no»)',
+        argumentHint: '[resumen | demo | sonido [sí|no]]',
       })
       await sonidoActivo($)
       // A session that starts, or a reload, has no turn of the main conversation running.
@@ -504,8 +517,14 @@ export const register: Register = on => {
       await ponSonido($, activo)
       return { text: activo ? 'Sonidos del panel Equipo activados, en todas las sesiones.' : 'Sonidos del panel Equipo desactivados, en todas las sesiones.' }
     }
+    const resumen = palabras.some(p => ['resumen', 'resumida', 'resumido'].includes(p))
+    await update($, vista, () => (resumen ? 'resumen' : 'completa'))
     await abrePanel($)
-    return { text: 'Panel Equipo abierto.' }
+    return {
+      text: resumen
+        ? 'Panel Equipo abierto en su forma resumida, la que enseña la app de escritorio con el panel minimizado. Con /equipo vuelve a la completa.'
+        : 'Panel Equipo abierto.',
+    }
   })
 
   // The engine measures after each turn of the main conversation and when a usage window moves a whole point.
@@ -582,7 +601,9 @@ export const register: Register = on => {
         })
       }
       await ajustaReloj($)
-      void $.ui.open({ id: PANEL, title: TITULO })
+      // Unasked, the panel asks to start minimized, as a widget: a surface without widgets opens it whole, and one where
+      // the panel already shows keeps it as it is.
+      void $.ui.open({ id: PANEL, title: TITULO, placement: 'widget' })
     } catch {
       // Never hold an agent back for the panel's sake.
     }
@@ -694,6 +715,7 @@ export const register: Register = on => {
     const Svg = e.surface !== 'terminal' && 'Svg' in tabla ? tabla.Svg : undefined
     const lista = await read($, agentes)
     await read($, tic)
+    const forma = await read($, vista)
     const conSonido = await read($, sonido)
     const uso = await read($, consumo)
     const estadoCache = await read($, cache)
@@ -707,46 +729,112 @@ export const register: Register = on => {
       </Box>
     )
 
-    // One row of the foot: its pixel icon, its name, its bar with the figure beside it, and a note beneath the bar.
-    // Where SVG is not drawn, as on the terminal, the bar is made of block characters. In a narrow panel the bar gives
-    // way, never the figure, and the note goes on to a second line.
-    const filaPie = (f: FilaPie) => {
+    // A row's bar with its figure beside it. Where SVG is not drawn, as on the terminal, the bar is made of block
+    // characters. In a narrow panel the bar gives way, never the figure.
+    const barraYCifra = (f: FilaPie) => {
       const n = llenas(f.p)
       return (
-        <Box key={`pie-${f.clave}`} flexDirection="row" alignItems="flex-start" gap="sm">
-          {Svg ? <Svg source={svgIcono(f.icono, f.apagado === true)} alt={f.etiqueta} width={16} height={16} /> : null}
-          <Box width={9}>
-            <Text dimColor size="caption">
-              {f.etiqueta}
-            </Text>
+        <Box flexDirection="row" alignItems="center" gap="sm">
+          <Box flexShrink={1} minWidth={0} overflow="hidden">
+            {Svg ? (
+              <Svg source={svgBarra(f.p)} alt={`${f.etiqueta}: ${f.cifra}`} />
+            ) : (
+              <Box flexDirection="row">
+                {n > 0 ? <Text color={semaforo(f.p)}>{'█'.repeat(n)}</Text> : null}
+                {n < 20 ? <Text dimColor>{'░'.repeat(20 - n)}</Text> : null}
+              </Box>
+            )}
           </Box>
-          <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
-            <Box flexDirection="row" alignItems="center" gap="sm">
-              <Box flexShrink={1} minWidth={0} overflow="hidden">
-                {Svg ? (
-                  <Svg source={svgBarra(f.p)} alt={`${f.etiqueta}: ${f.cifra}`} />
-                ) : (
-                  <Box flexDirection="row">
-                    {n > 0 ? <Text color={semaforo(f.p)}>{'█'.repeat(n)}</Text> : null}
-                    {n < 20 ? <Text dimColor>{'░'.repeat(20 - n)}</Text> : null}
-                  </Box>
-                )}
-              </Box>
-              <Box flexShrink={0}>
-                <Text size="caption" weight="medium" tabular dimColor={f.apagado === true} color={!f.apagado && f.p >= 80 ? '#E24B4A' : undefined}>
-                  {f.cifra}
-                </Text>
-              </Box>
-            </Box>
-            {f.nota ? (
-              <Text dimColor size="caption">
-                {f.nota}
-              </Text>
-            ) : null}
+          <Box flexShrink={0}>
+            <Text size="caption" weight="medium" tabular dimColor={f.apagado === true} color={!f.apagado && f.p >= 80 ? '#E24B4A' : undefined}>
+              {f.cifra}
+            </Text>
           </Box>
         </Box>
       )
     }
+
+    // One row of the foot: its pixel icon, its name, its bar with the figure beside it, and a note beneath the bar,
+    // which goes on to a second line in a narrow panel.
+    const filaPie = (f: FilaPie) => (
+      <Box key={`pie-${f.clave}`} flexDirection="row" alignItems="flex-start" gap="sm">
+        {Svg ? <Svg source={svgIcono(f.icono, f.apagado === true)} alt={f.etiqueta} width={16} height={16} /> : null}
+        <Box width={9}>
+          <Text dimColor size="caption">
+            {f.etiqueta}
+          </Text>
+        </Box>
+        <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
+          {barraYCifra(f)}
+          {f.nota ? (
+            <Text dimColor size="caption">
+              {f.nota}
+            </Text>
+          ) : null}
+        </Box>
+      </Box>
+    )
+
+    // A usage window in the glance: its name, its bar and its figure, with no icon and no note.
+    const filaVistazo = (f: FilaPie) => (
+      <Box key={`vistazo-${f.clave}`} flexDirection="row" alignItems="center" gap="sm">
+        <Box width={9} flexShrink={0}>
+          <Text dimColor size="caption">
+            {f.etiqueta}
+          </Text>
+        </Box>
+        <Box flexGrow={1} flexShrink={1} minWidth={0}>
+          {barraYCifra(f)}
+        </Box>
+      </Box>
+    )
+
+    // The glance a widget draws, to be read at a glance and with no buttons, since clicks may not reach it: the Clawds at
+    // work, the first few, with how many there are and the time of the one at work the longest; with nobody at work, the
+    // usage windows. Anchored on the chat's right edge, the Clawds line up on the right.
+    const vistazo = () => {
+      const activos = lista.filter(a => a.estado === 'trabajando').sort((x, y) => x.inicio - y.inicio)
+      const primero = activos[0]
+      if (!primero) {
+        return (
+          <Box key="vistazo" flexDirection="column" gap="xs">
+            <Text dimColor size="caption">
+              Ningún agente trabajando
+            </Text>
+            {filasLimites(uso, ahora).map(filaVistazo)}
+          </Box>
+        )
+      }
+      const vistos = activos.slice(0, MAX_VISTAZO)
+      const resto = activos.length - vistos.length
+      const aLaDerecha = e.props.anchoredEdges?.includes('right') === true
+      return (
+        <Box key="vistazo" flexDirection="column" alignItems={aLaDerecha ? 'flex-end' : 'flex-start'} gap="xs">
+          <Box flexDirection="row" alignItems="center" gap="xs">
+            {Svg ? (
+              vistos.map(a => (
+                <Box key={`vistazo-${a.id}`}>
+                  <Svg source={dibujo(a)} alt={nombreDe(a.profesion)} width={LADO_VISTAZO} height={LADO_VISTAZO} isInteractive={true} />
+                </Box>
+              ))
+            ) : (
+              <Text color={COLOR.trabajando}>{vistos.map(() => MARCA.trabajando).join(' ')}</Text>
+            )}
+            {resto > 0 ? <Text dimColor>{`+${resto}`}</Text> : null}
+          </Box>
+          <Box flexDirection="row" alignItems="center" gap="sm">
+            <Text weight="medium">{`${activos.length} trabajando`}</Text>
+            <Text dimColor>·</Text>
+            <Text color={COLOR.trabajando} tabular>
+              {cronometro(ahora - primero.inicio)}
+            </Text>
+          </Box>
+        </Box>
+      )
+    }
+
+    if (e.props.placement === 'widget' || forma === 'resumen') return vistazo()
+
     const filas = filasPie(uso, estadoCache, ahora)
     // Usage windows remembered from $.store, which this session has not read yet: the foot says when they are from.
     const recordados =
